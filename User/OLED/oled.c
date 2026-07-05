@@ -433,6 +433,15 @@ void OLED_ShowFloatNum(uint8_t x,uint8_t y,float num,uint8_t z_len,uint8_t f_len
 	OLED_ShowNum(x,y,decimal_part,f_len,size1,mode);         //显示小数部分
 }
 
+// 画一个实心矩形，用于高亮背景条
+void OLED_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t mode)
+{
+    for(uint8_t i = 0; i < w; i++)
+        for(uint8_t j = 0; j < h; j++)
+            OLED_DrawPoint(x + i, y + j, mode);
+}
+
+
 //OLED的初始化
 void OLED_Init(void)
 {

@@ -27,6 +27,10 @@
 /* USER CODE BEGIN Includes */
 #include "key_task.h"
 #include "oled.h"
+#include "ui_task.h"
+#include "mpu_task.h"
+#include "usart.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,15 +63,22 @@ const osThreadAttr_t KeyScanTask_attributes = {
 osThreadId_t UIManagerTaskHandle;
 const osThreadAttr_t UIManagerTask_attributes = {
   .name = "UIManagerTask",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
 /* Definitions for MPUReadTask */
 osThreadId_t MPUReadTaskHandle;
 const osThreadAttr_t MPUReadTask_attributes = {
   .name = "MPUReadTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for HeartbeatTask */
+osThreadId_t HeartbeatTaskHandle;
+const osThreadAttr_t HeartbeatTask_attributes = {
+  .name = "HeartbeatTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for KeyQueue */
 osMessageQueueId_t KeyQueueHandle;
@@ -93,8 +104,23 @@ const osMutexAttr_t AttitudeMutex_attributes = {
 void Key_Scan_Task(void *argument);
 void UI_Manager_Task(void *argument);
 void MPU_Read_Task(void *argument);
+void Hearbeat_Task(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
+
+/* Hook prototypes */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
+
+/* USER CODE BEGIN 4 */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+{
+   /* Run time stack overflow checking is performed if
+   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+   called if a stack overflow is detected. */
+       printf("Stack Overflow: %s\r\n", pcTaskName);
+    while(1);
+}
+/* USER CODE END 4 */
 
 /**
   * @brief  FreeRTOS initialization
@@ -142,6 +168,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of MPUReadTask */
   MPUReadTaskHandle = osThreadNew(MPU_Read_Task, NULL, &MPUReadTask_attributes);
 
+  /* creation of HeartbeatTask */
+  HeartbeatTaskHandle = osThreadNew(Hearbeat_Task, NULL, &HeartbeatTask_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -183,16 +212,11 @@ void UI_Manager_Task(void *argument)
   /* USER CODE BEGIN UI_Manager_Task */
   uint16_t evt;
   /* Infinite loop */
-  for(;;)
-  {
-    if(osMessageQueueGet(KeyQueueHandle, &evt, NULL, osWaitForever) == osOK)
-    {
-        OLED_Clear();
-        OLED_ShowNum(0, 0, evt, 1, 16, 1);  // 在屏幕左上角显示事件编号�?0~6�?
-        OLED_Refresh();
-    }
-    osDelay(10);
-  }
+  UI_Manager_Task_Entry(argument);
+  // for(;;)
+  // {
+  //   osDelay(10);
+  // }
   /* USER CODE END UI_Manager_Task */
 }
 
@@ -206,15 +230,35 @@ void UI_Manager_Task(void *argument)
 void MPU_Read_Task(void *argument)
 {
   /* USER CODE BEGIN MPU_Read_Task */
+// MPU_Read_Task_Entry(argument);
+  /* Infinite loop */
+  for(;;)
+  {
+osDelay(10);
+
+  }
+  /* USER CODE END MPU_Read_Task */
+}
+
+/* USER CODE BEGIN Header_Hearbeat_Task */
+/**
+* @brief Function implementing the HeartbeatTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Hearbeat_Task */
+void Hearbeat_Task(void *argument)
+{
+  /* USER CODE BEGIN Hearbeat_Task */
   /* Infinite loop */
   for(;;)
   {
     HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     osDelay(500);
-   HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
+    HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     osDelay(500);
   }
-  /* USER CODE END MPU_Read_Task */
+  /* USER CODE END Hearbeat_Task */
 }
 
 /* Private application code --------------------------------------------------*/

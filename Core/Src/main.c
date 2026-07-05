@@ -51,7 +51,9 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+//   float g_pitch = 0.0f;
+// float g_roll  = 0.0f;
+// float g_yaw   = 0.0f;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,16 +101,15 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
- __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�? 50%
+ __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�???? 50%
 
   iic_init();     /* 初始化IIC总线 */  
   OLED_Init();   /* 初始化OLED */ 
   OLED_ShowString(0, 0,(uint8_t *)"OLED Init finished", 16, 1);
   OLED_Refresh();
-
+printf("usart initialized\r\n");
   // 初始化MPU6050
   if (MPU_Init() != 0) {
-    // 初始化失败处�?
     printf("mpu_init err");
     OLED_ShowString(0, 16,(uint8_t *)"MPU6050 Init failed", 16, 1);
     OLED_Refresh();
@@ -126,7 +127,9 @@ int main(void)
 
   OLED_Clear();
 
-  float pitch, roll, yaw;
+
+
+  
   uint16_t i = 0;
   /* USER CODE END 2 */
 
@@ -148,14 +151,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (mpu_dmp_get_data(&pitch, &roll, &yaw) == 0) {
-      // 成功读取数据
-      printf("Pitch:%.2f Roll:%.2f Yaw:%.2f\r\n", pitch, roll, yaw);
-      OLED_ShowFloatNum(0, 0, pitch, 2, 2, 16,1);
-      OLED_ShowFloatNum(0, 16, roll , 2, 2, 16,1);
-      OLED_ShowFloatNum(0, 32, yaw , 2, 2, 16,1);
-      OLED_Refresh();
-    }
+    // if (mpu_dmp_get_data(&g_pitch, &g_roll, &g_yaw) == 0) {
+    //   // 成功读取数据
+    //   printf("Pitch:%.2f Roll:%.2f Yaw:%.2f\r\n", g_pitch, g_roll, g_yaw);
+    //   OLED_ShowFloatNum(0, 0, g_pitch, 2, 2, 16,1);
+    //   OLED_ShowFloatNum(0, 16, g_roll , 2, 2, 16,1);
+    //   OLED_ShowFloatNum(0, 32, g_yaw , 2, 2, 16,1);
+    //   OLED_Refresh();
+    // }
     HAL_Delay(10); // 10Hz读取频率
     i++;
 

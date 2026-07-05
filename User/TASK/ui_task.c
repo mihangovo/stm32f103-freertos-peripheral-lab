@@ -2,6 +2,9 @@
 #include "key_task.h"
 #include "oled.h"
 #include "main.h"
+#include "mpu_task.h"
+#include "stdio.h"
+#include "task.h"
 
 extern osMessageQueueId_t KeyQueueHandle;
 extern osMutexId_t I2CMutexHandle;
@@ -25,18 +28,28 @@ static void Draw_Main_Menu(void)
     OLED_ShowString(0, 0, (uint8_t*)"== Main Menu ==", 12, 1);
     for(int i = 0; i < MENU_ITEM_COUNT; i++)
     {
-        uint8_t y = 16 + i * 14;
+        uint8_t y = 16 + i * 16;   // 行间距从14改成16，跟字体实际高度对齐
         if(i == menu_cursor)
-            OLED_ShowString(0, y, (uint8_t*)">", 12, 1);   // 光标标记
-        OLED_ShowString(12, y, (uint8_t*)menu_items[i], 12, 1);
+        {
+            OLED_FillRect(0, y, 127, 16, 1);   // 高亮条高度从12改成16
+            OLED_ShowString(0, y, (uint8_t*)menu_items[i], 12, 0);
+        }
+        else
+        {
+            OLED_ShowString(0, y, (uint8_t*)menu_items[i], 12, 1);
+        }
     }
+    OLED_Refresh();
 }
 
 static void Draw_Attitude_Page(void)
 {
     OLED_Clear();
-    OLED_ShowString(0, 0, (uint8_t*)"Attitude", 12, 1);
-    OLED_ShowString(0, 40, (uint8_t*)"Back:long press", 12, 1);
+    OLED_ShowString(0, 0, (uint8_t*)"Attitude Info", 12, 1);
+    OLED_ShowString(0, 20, (uint8_t*)"P:", 12, 1);
+    OLED_ShowString(0, 34, (uint8_t*)"R:", 12, 1);
+    OLED_ShowString(0, 48, (uint8_t*)"Y:", 12, 1);
+    OLED_Refresh();
 }
 
 static void Update_Attitude_Values(void)
@@ -49,23 +62,26 @@ static void Update_Attitude_Values(void)
     yaw   = g_yaw;
     osMutexRelease(AttitudeMutexHandle);
 
-    OLED_ShowFloatNum(0, 16, pitch, 3, 1, 12, 1);
-    OLED_ShowFloatNum(0, 28, roll,  3, 1, 12, 1);
-    OLED_ShowFloatNum(0, 40, yaw,   3, 1, 12, 1);
+    OLED_ShowFloatNum(20, 20, pitch, 3, 1, 12, 1);
+    OLED_ShowFloatNum(20, 34, roll, 3, 1, 12, 1);
+    OLED_ShowFloatNum(20, 48, yaw, 3, 1, 12, 1);
+    OLED_Refresh();
 }
 
 static void Draw_Storage_Page(void)
 {
     OLED_Clear();
     OLED_ShowString(0, 0, (uint8_t*)"Storage Page", 12, 1);
-    OLED_ShowString(0, 40, (uint8_t*)"Back:long press", 12, 1);
+    OLED_ShowString(0, 52, (uint8_t*)"Back:long press", 12, 1);
+    OLED_Refresh();   // ← 补上这一行
 }
 
 static void Draw_Setting_Page(void)
 {
     OLED_Clear();
     OLED_ShowString(0, 0, (uint8_t*)"Setting Page", 12, 1);
-    OLED_ShowString(0, 40, (uint8_t*)"Back:long press", 12, 1);
+    OLED_ShowString(0, 52, (uint8_t*)"Back:long press", 12, 1);
+    OLED_Refresh();   // ← 补上这一行
 }
 
 // ---------- 判断是否是"长按"事件（统一当作返回键）----------
@@ -79,6 +95,11 @@ void UI_Manager_Task_Entry(void *argument)
     UI_State_t current_ui = UI_MAIN_MENU;
     UI_State_t last_ui = (UI_State_t)0xFF;   // 强制第一次刷新
     uint16_t evt;
+
+        osMutexAcquire(I2CMutexHandle, osWaitForever);
+    Draw_Main_Menu();
+    osMutexRelease(I2CMutexHandle);
+    last_ui = current_ui;   // 标记已经画过了,避免循环里重复画
 
     for(;;)
     {
@@ -101,8 +122,8 @@ void UI_Manager_Task_Entry(void *argument)
                     menu_cursor = (menu_cursor + 1) % MENU_ITEM_COUNT;
                 else if(evt == KEY_UP_SHORT)
                     current_ui = (UI_State_t)(menu_cursor + 1);   // 进入选中的页面
-
-                Draw_Main_Menu();   // 菜单里任何操作都要重绘一次（光标移动也要看到变化）
+                if(current_ui == UI_MAIN_MENU)
+                    Draw_Main_Menu();   // 菜单里任何操作都要重绘一次（光标移动也要看到变化）
             }
             // 子页面里，短按事件暂时不处理，先留空，以后可以扩展具体功能
         }
@@ -129,5 +150,7 @@ void UI_Manager_Task_Entry(void *argument)
             Update_Attitude_Values();
             osMutexRelease(I2CMutexHandle);
         }
+        UBaseType_t ui_free = uxTaskGetStackHighWaterMark(NULL);
+printf("UI task stack free: %lu words\r\n", (unsigned long)ui_free);
     }
 }

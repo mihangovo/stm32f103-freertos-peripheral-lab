@@ -30,6 +30,7 @@ void OLED_ScrollDisplay(uint8_t num,uint8_t space,uint8_t mode);
 void OLED_ShowPicture(uint8_t x,uint8_t y,uint8_t sizex,uint8_t sizey,uint8_t BMP[],uint8_t mode);
 void OLED_Init(void);
 void OLED_ShowFloatNum(uint8_t x,uint8_t y,float num,uint8_t z_len,uint8_t f_len,uint8_t size1,uint8_t mode);
+void OLED_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t mode);
  
 #endif
 

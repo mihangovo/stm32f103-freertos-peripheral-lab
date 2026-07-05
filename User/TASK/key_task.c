@@ -11,8 +11,8 @@ static uint8_t Read_Key_Pin(uint8_t key_index)
 {
     switch(key_index)
     {
-        case 0: return HAL_GPIO_ReadPin(KEY0_GPIO_Port, KEY0_Pin);
-        case 1: return HAL_GPIO_ReadPin(KEY1_GPIO_Port, KEY1_Pin);
+        case 0: return HAL_GPIO_ReadPin(KEY1_GPIO_Port, KEY1_Pin);
+        case 1: return HAL_GPIO_ReadPin(KEY0_GPIO_Port, KEY0_Pin);
         case 2: return !HAL_GPIO_ReadPin(KEY_UP_GPIO_Port, KEY_UP_Pin);
         default: return 1;
     }

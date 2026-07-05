@@ -54,6 +54,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/MPU6050/eMPL/inv_mpu.c
     User/MPU6050/eMPL/inv_mpu_dmp_motion_driver.c
     User/TASK/key_task.c
+    User/TASK/ui_task.c
+    User/TASK/mpu_task.c
 )
 
 # Add include paths
