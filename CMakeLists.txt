@@ -50,6 +50,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     User/IIC/myiic.c
     User/OLED/oled.c
+    User/MPU6050/mpu6050.c
+    User/MPU6050/eMPL/inv_mpu.c
+    User/MPU6050/eMPL/inv_mpu_dmp_motion_driver.c
 )
 
 # Add include paths
@@ -57,6 +60,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     User/IIC
     User/OLED
+    User/MPU6050
+    User/MPU6050/eMPL
 )
 
 # Add project symbols (macros)
@@ -69,4 +74,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 
     # Add user defined libraries
+)
+target_link_options(${CMAKE_PROJECT_NAME} PUBLIC
+    -Wl,-u,_printf_float
 )

@@ -26,6 +26,10 @@
 /* USER CODE BEGIN Includes */
 #include "myiic.h"
 #include "oled.h"
+#include "mpu6050.h"
+#include "inv_mpu.h"
+#include "inv_mpu_dmp_motion_driver.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,8 +101,31 @@ int main(void)
 
   iic_init();     /* 初始化IIC总线 */  
   OLED_Init();   /* 初始化OLED */ 
-  OLED_ShowString(5, 5,(uint8_t *)"Hello OLED", 16, 1);
+  OLED_ShowString(0, 0,(uint8_t *)"OLED Init finished", 16, 1);
   OLED_Refresh();
+
+  // 初始化MPU6050
+  if (MPU_Init() != 0) {
+    // 初始化失败处理
+    printf("mpu_init err");
+    OLED_ShowString(0, 16,(uint8_t *)"MPU6050 Init failed", 16, 1);
+    OLED_Refresh();
+    while (1)
+      ;
+  }
+
+  // 初始化DMP
+  while (mpu_dmp_init()) {
+    HAL_Delay(200);
+    printf("dmp_init err");
+    OLED_ShowString(0, 32,(uint8_t *)"dmp_init failed", 16, 1);
+    // 重试
+  }
+
+  OLED_Clear();
+
+  float pitch, roll, yaw;
+  uint16_t i = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -106,11 +133,24 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
-  HAL_Delay(500);
-  HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);\
-  HAL_Delay(500);
+    
+
     /* USER CODE BEGIN 3 */
+    if (mpu_dmp_get_data(&pitch, &roll, &yaw) == 0) {
+      // 成功读取数据
+      printf("Pitch:%.2f Roll:%.2f Yaw:%.2f\r\n", pitch, roll, yaw);
+      OLED_ShowFloatNum(0, 0, pitch, 2, 2, 16,1);
+      OLED_ShowFloatNum(0, 16, roll , 2, 2, 16,1);
+      OLED_ShowFloatNum(0, 32, yaw , 2, 2, 16,1);
+      OLED_Refresh();
+    }
+    HAL_Delay(10); // 10Hz读取频率
+    i++;
+
+    if (i == 20) {
+      HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
+      i = 0;
+    }
   }
   /* USER CODE END 3 */
 }

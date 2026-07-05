@@ -6,7 +6,9 @@
 // #include "main.h"
  
 uint8_t OLED_GRAM[144][8];
- 
+
+
+
 //反显函数
 void OLED_ColorTurn(uint8_t i)
 {
@@ -387,6 +389,50 @@ void OLED_ShowPicture(uint8_t x,uint8_t y,uint8_t sizex,uint8_t sizey,uint8_t BM
      }
 	 }
 }
+
+//显示浮点数（支持负数）
+//x,y   :起点坐标
+//num   :要显示的浮点数
+//z_len :整数部分位数
+//f_len :小数部分位数
+//size1 :字体大小
+//mode  :0,反色显示;1,正常显示
+void OLED_ShowFloatNum(uint8_t x,uint8_t y,float num,uint8_t z_len,uint8_t f_len,uint8_t size1,uint8_t mode)
+{
+	uint8_t char_width;
+	uint32_t scale,integer_part,decimal_part;
+	float abs_num;
+
+	if(size1==8) char_width=6;
+	else char_width=size1/2;
+
+	scale=OLED_Pow(10,f_len);
+
+	if(num<0)
+	{
+		OLED_ShowChar(x,y,'-',size1,mode); //显示负号
+		x+=char_width;
+		abs_num=-num;
+	}
+	else
+	{
+		abs_num=num;
+	}
+
+	abs_num+=0.5f/scale; //四舍五入到指定小数位，避免截断误差
+
+	integer_part=(uint32_t)abs_num;
+	decimal_part=(uint32_t)((abs_num-integer_part)*scale);
+
+	OLED_ShowNum(x,y,integer_part,z_len,size1,mode);         //显示整数部分
+	x+=z_len*char_width;
+
+	OLED_ShowChar(x,y,'.',size1,mode);                       //显示小数点
+	x+=char_width;
+
+	OLED_ShowNum(x,y,decimal_part,f_len,size1,mode);         //显示小数部分
+}
+
 //OLED的初始化
 void OLED_Init(void)
 {
