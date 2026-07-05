@@ -53,6 +53,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/MPU6050/mpu6050.c
     User/MPU6050/eMPL/inv_mpu.c
     User/MPU6050/eMPL/inv_mpu_dmp_motion_driver.c
+    User/TASK/key_task.c
 )
 
 # Add include paths
@@ -62,6 +63,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     User/OLED
     User/MPU6050
     User/MPU6050/eMPL
+    User/TASK
 )
 
 # Add project symbols (macros)
