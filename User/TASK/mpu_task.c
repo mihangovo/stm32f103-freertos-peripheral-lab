@@ -12,7 +12,9 @@ float g_pitch = 0.0f;
 float g_roll  = 0.0f;
 float g_yaw   = 0.0f;
 
-#define MPU_READ_PERIOD_MS   20   // DMP数据更新频率通常在50Hz左右，20ms采样一次比较合适
+volatile uint32_t g_mpu_read_period = 200;
+
+#define MPU_READ_PERIOD_MS   50   // DMP数据更新频率通常在50Hz左右，20ms采样一次比较合适
 
 void MPU_Read_Task_Entry(void *argument)
 {
@@ -32,13 +34,13 @@ void MPU_Read_Task_Entry(void *argument)
             g_yaw   = yaw;
             osMutexRelease(AttitudeMutexHandle);
         }
-static uint32_t debug_counter = 0;
-if(++debug_counter >= 50)   // 20ms*50=1秒打印一次
-{
-    debug_counter = 0;
-    UBaseType_t mpu_free  = uxTaskGetStackHighWaterMark(NULL);  // NULL表示查询"调用者自己"的栈余量
-    printf("MPU task stack free: %lu words\r\n", (unsigned long)mpu_free);
-}
-        osDelay(MPU_READ_PERIOD_MS);
+// static uint32_t debug_counter = 0;
+// if(++debug_counter >= 50)   // 20ms*50=1秒打印一次
+// {
+//     debug_counter = 0;
+//     UBaseType_t mpu_free  = uxTaskGetStackHighWaterMark(NULL);  // NULL表示查询"调用者自己"的栈余量
+//     printf("MPU task stack free: %lu words\r\n", (unsigned long)mpu_free);
+// }
+        osDelay(g_mpu_read_period);
     }
 }

@@ -58,8 +58,10 @@ void iic_init(void)
 static void iic_delay(void)
 {
     // delay_us(2);    /* 2us的延时, 读写速度在250Khz以内 */
-    	uint8_t t=3;
-	while(t--);
+    // 	uint8_t t=1;
+	// while(t--);
+    //  for(volatile int i=0;i<20;i++);
+    for(volatile uint8_t i=0;i<5;i++);
 }
 
 /**
@@ -124,6 +126,7 @@ uint8_t iic_wait_ack(void)
     IIC_SCL(0);     /* SCL=0, 结束ACK检查 */
     iic_delay();
     return rack;
+    // return 0;
 }
 
 /**

@@ -3,6 +3,8 @@
 #include "oled.h"
 #include "oledfont.h"
 #include "myiic.h"
+#include "FreeRTOS.h"
+#include "task.h"
 // #include "main.h"
  
 uint8_t OLED_GRAM[144][8];
@@ -73,8 +75,10 @@ void OLED_DisPlay_Off(void)
 void OLED_Refresh(void)
 {
 	uint8_t i,n;
+
 	for(i=0;i<8;i++)
 	{
+		// taskENTER_CRITICAL();
 		OLED_WR_Byte(0xb0+i,OLED_CMD); //设置行起始地址
 		OLED_WR_Byte(0x00,OLED_CMD);   //设置低列起始地址
 		OLED_WR_Byte(0x10,OLED_CMD);   //设置高列起始地址
@@ -89,8 +93,13 @@ void OLED_Refresh(void)
 			iic_wait_ack();
 		}
 		iic_stop();
+		// taskEXIT_CRITICAL();
   }
+
 }
+
+
+
 //清屏函数
 void OLED_Clear(void)
 {
@@ -102,7 +111,7 @@ void OLED_Clear(void)
 			 OLED_GRAM[n][i]=0;//清除所有数据
 			}
   }
-	OLED_Refresh();//更新显示
+	// OLED_Refresh();//更新显示
 }
  
 //画点 

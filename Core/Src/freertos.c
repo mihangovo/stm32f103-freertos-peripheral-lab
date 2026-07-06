@@ -230,13 +230,13 @@ void UI_Manager_Task(void *argument)
 void MPU_Read_Task(void *argument)
 {
   /* USER CODE BEGIN MPU_Read_Task */
-// MPU_Read_Task_Entry(argument);
+MPU_Read_Task_Entry(argument);
   /* Infinite loop */
-  for(;;)
-  {
-osDelay(10);
+//   for(;;)
+//   {
+// osDelay(10);
 
-  }
+//   }
   /* USER CODE END MPU_Read_Task */
 }
 
@@ -251,8 +251,17 @@ void Hearbeat_Task(void *argument)
 {
   /* USER CODE BEGIN Hearbeat_Task */
   /* Infinite loop */
+  uint8_t i = 0;
   for(;;)
   {
+    // oled_Refresh();
+    // osDelay(100);
+    // i++;
+    // if(i >= 20)   // 20ms*20=400ms闪
+    // {
+    //   HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
+    //   i = 0;
+    // }
     HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     osDelay(500);
     HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);

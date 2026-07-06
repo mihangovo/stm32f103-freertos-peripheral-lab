@@ -10,6 +10,7 @@ extern osMessageQueueId_t KeyQueueHandle;
 extern osMutexId_t I2CMutexHandle;
 extern osMutexId_t AttitudeMutexHandle;
 extern float g_pitch, g_roll, g_yaw;   // MPU_Read_Task 会更新这几个变量
+extern volatile uint32_t g_mpu_read_period;   // UI_Manager_Task 会根据当前界面调整读取频率
 
 static const char *menu_items[] = {
     "Attitude",
@@ -96,7 +97,7 @@ void UI_Manager_Task_Entry(void *argument)
     UI_State_t last_ui = (UI_State_t)0xFF;   // 强制第一次刷新
     uint16_t evt;
 
-        osMutexAcquire(I2CMutexHandle, osWaitForever);
+    osMutexAcquire(I2CMutexHandle, osWaitForever);
     Draw_Main_Menu();
     osMutexRelease(I2CMutexHandle);
     last_ui = current_ui;   // 标记已经画过了,避免循环里重复画
@@ -104,7 +105,7 @@ void UI_Manager_Task_Entry(void *argument)
     for(;;)
     {
         // 姿态页面需要持续刷新数值，所以不能永久阻塞等待，改用100ms超时
-        uint32_t timeout = (current_ui == UI_ATTITUDE_PAGE) ? 100 : osWaitForever;
+        uint32_t timeout = (current_ui == UI_ATTITUDE_PAGE) ? 1 : osWaitForever;
 
         osStatus_t status = osMessageQueueGet(KeyQueueHandle, &evt, NULL, timeout);
 
@@ -134,10 +135,10 @@ void UI_Manager_Task_Entry(void *argument)
             osMutexAcquire(I2CMutexHandle, osWaitForever);
             switch(current_ui)
             {
-                case UI_MAIN_MENU:      Draw_Main_Menu();     break;
-                case UI_ATTITUDE_PAGE:  Draw_Attitude_Page();  break;
-                case UI_STORAGE_PAGE:   Draw_Storage_Page();   break;
-                case UI_SETTING_PAGE:   Draw_Setting_Page();   break;
+                case UI_MAIN_MENU:       g_mpu_read_period = 200;Draw_Main_Menu();     break;
+                case UI_ATTITUDE_PAGE:   g_mpu_read_period = 20;Draw_Attitude_Page();  break;
+                case UI_STORAGE_PAGE:    g_mpu_read_period = 200;Draw_Storage_Page();   break;
+                case UI_SETTING_PAGE:    g_mpu_read_period = 200;Draw_Setting_Page();   break;
                 default: break;
             }
             osMutexRelease(I2CMutexHandle);
@@ -150,7 +151,7 @@ void UI_Manager_Task_Entry(void *argument)
             Update_Attitude_Values();
             osMutexRelease(I2CMutexHandle);
         }
-        UBaseType_t ui_free = uxTaskGetStackHighWaterMark(NULL);
-printf("UI task stack free: %lu words\r\n", (unsigned long)ui_free);
+//         UBaseType_t ui_free = uxTaskGetStackHighWaterMark(NULL);
+// printf("UI task stack free: %lu words\r\n", (unsigned long)ui_free);
     }
 }
