@@ -16,6 +16,7 @@ static const char *menu_items[] = {
     "Attitude",
     "Storage",
     "Setting",
+    "LED",
 };
 #define MENU_ITEM_COUNT   3
 

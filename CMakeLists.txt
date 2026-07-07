@@ -56,6 +56,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/TASK/key_task.c
     User/TASK/ui_task.c
     User/TASK/mpu_task.c
+    User/NORFLASH/norflash.c
 )
 
 # Add include paths
@@ -66,6 +67,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     User/MPU6050
     User/MPU6050/eMPL
     User/TASK
+    User/NORFLASH
 )
 
 # Add project symbols (macros)

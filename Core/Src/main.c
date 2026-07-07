@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "spi.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -31,6 +32,8 @@
 #include "inv_mpu.h"
 #include "inv_mpu_dmp_motion_driver.h"
 #include <stdio.h>
+#include "norflash.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,15 +102,51 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_TIM2_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
- __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�???? 50%
+ __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�????? 50%
 
   iic_init();     /* 初始化IIC总线 */  
   OLED_Init();   /* 初始化OLED */ 
   OLED_ShowString(0, 0,(uint8_t *)"OLED Init finished", 16, 1);
   OLED_Refresh();
-printf("usart initialized\r\n");
+  printf("usart initialized\r\n");
+
+  //flash测试
+  norflash_init();
+
+  uint16_t id = norflash_read_id();
+  printf("NORFLASH ID: 0x%04X\r\n", id);
+
+  if (id == 0 || id == 0xFFFF) {
+    printf("FLASH Check Failed! Please check wiring.\r\n");
+  } else if (id == W25Q128) {
+    printf("FLASH Check OK, chip is W25Q128.\r\n");
+  } else {
+    printf("FLASH detected, but ID does not match W25Q128 (got 0x%04X)\r\n",
+           id);
+  }
+
+  const uint8_t test_text[] = "STM32 SPI TEST";
+  uint8_t write_buf[32];
+  uint8_t read_buf[32] = {0};
+  uint32_t flash_size = 16 * 1024 * 1024; // W25Q128 = 16MB
+  uint32_t test_addr = flash_size - 100;
+
+  sprintf((char *)write_buf, "%s", test_text);
+  norflash_write(write_buf, test_addr, sizeof(test_text));
+
+  norflash_read(read_buf, test_addr, sizeof(test_text));
+
+  printf("Write: %s\r\n", write_buf);
+  printf("Read : %s\r\n", read_buf);
+
+  if (memcmp(write_buf, read_buf, sizeof(test_text)) == 0) {
+    printf("Flash R/W test: PASS\r\n");
+  } else {
+    printf("Flash R/W test: FAIL\r\n");
+  }
   // 初始化MPU6050
   if (MPU_Init() != 0) {
     printf("mpu_init err");
