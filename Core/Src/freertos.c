@@ -305,7 +305,7 @@ void Hearbeat_Task(void *argument)
     // oled_Refresh();
     // osDelay(100);
     // i++;
-    // if(i >= 20)   // 20ms*20=400msï¿½?????
+    // if(i >= 20)   // 20ms*20=400msï¿??????
     // {
     //   HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     //   i = 0;

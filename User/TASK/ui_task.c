@@ -6,6 +6,7 @@
 #include "stdio.h"
 #include "task.h"
 #include "led_task.h"
+#include "storage_task.h"
 
 extern osMessageQueueId_t KeyQueueHandle;
 extern osMutexId_t I2CMutexHandle;
@@ -110,12 +111,36 @@ static void Update_Attitude_Values(void)
     OLED_Refresh();
 }
 
+// static void Draw_Storage_Page(void)
+// {
+//     OLED_Clear();
+//     OLED_ShowString(0, 0, (uint8_t*)"Storage Page", 12, 1);
+//     OLED_ShowString(0, 52, (uint8_t*)"Back:long press", 12, 1);
+//     OLED_Refresh();   // ← 补上这一行
+// }
+
 static void Draw_Storage_Page(void)
 {
+    HistoryRecord_t rec;
+
     OLED_Clear();
-    OLED_ShowString(0, 0, (uint8_t*)"Storage Page", 12, 1);
-    OLED_ShowString(0, 52, (uint8_t*)"Back:long press", 12, 1);
-    OLED_Refresh();   // ← 补上这一行
+
+    OLED_ShowString(0,0,(uint8_t*)"History",12,1);
+
+    if(Storage_ReadHistoryByOffset(0,&rec))
+    {
+        rec.content[rec.length] = '\0';
+
+        OLED_ShowString(0,20,(uint8_t*)rec.content,12,1);
+    }
+    else
+    {
+        OLED_ShowString(0,20,(uint8_t*)"Empty",12,1);
+    }
+
+    OLED_ShowString(0,52,(uint8_t*)"Back",12,1);
+
+    OLED_Refresh();
 }
 
 static void Draw_Setting_Page(void)
