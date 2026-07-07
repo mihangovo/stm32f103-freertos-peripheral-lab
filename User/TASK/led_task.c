@@ -41,11 +41,11 @@ void LED_Task_Entry(void *argument)
     osMutexRelease(MetaDataMutexHandle);
 
     // printf("LED task=%d\r\n", g_led_red_state);
-    printf("LED Task Start\r\n");
+    // printf("LED Task Start\r\n");
     LED_Red_ApplyState(g_led_red_state);
 
     for(;;)
     {
-        osDelay(100);   // 这个任务目前不需要持续工作，红灯只在按键触发时切换状态，主循环留空即可
+        osDelay(500);   // 这个任务目前不需要持续工作，红灯只在按键触发时切换状态，主循环留空即可
     }
 }

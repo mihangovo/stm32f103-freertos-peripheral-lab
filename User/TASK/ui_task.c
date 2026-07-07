@@ -274,6 +274,17 @@ void UI_Manager_Task_Entry(void *argument)
                     osMutexRelease(I2CMutexHandle);
                 }
             }
+
+            else if (current_ui == UI_LED_ONBOARD_PAGE) {
+              if (evt == KEY_UP_SHORT) {
+                LED_Red_Toggle();
+
+                osMutexAcquire(I2CMutexHandle, osWaitForever);
+                Draw_Led_Onboard_Page();
+                osMutexRelease(I2CMutexHandle);
+              }
+            }
+
             // ... LED_ONBOARD_PAGE分支不变
         }
 
@@ -288,7 +299,7 @@ void UI_Manager_Task_Entry(void *argument)
                 case UI_STORAGE_PAGE:     g_mpu_read_period = 200; Draw_Storage_Page();       break;
                 case UI_SETTING_PAGE:     g_mpu_read_period = 200; Draw_Setting_Page();       break;
                 case UI_LED_ONBOARD_PAGE: g_mpu_read_period = 200; Draw_Led_Onboard_Page();   break;
-                default: g_mpu_read_period = 200; break;
+                default: g_mpu_read_period = 2000; break;
             }
             osMutexRelease(I2CMutexHandle);
             last_ui = current_ui;
