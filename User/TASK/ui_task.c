@@ -5,6 +5,7 @@
 #include "mpu_task.h"
 #include "stdio.h"
 #include "task.h"
+#include "led_task.h"
 
 extern osMessageQueueId_t KeyQueueHandle;
 extern osMutexId_t I2CMutexHandle;
@@ -12,35 +13,74 @@ extern osMutexId_t AttitudeMutexHandle;
 extern float g_pitch, g_roll, g_yaw;   // MPU_Read_Task 会更新这几个变量
 extern volatile uint32_t g_mpu_read_period;   // UI_Manager_Task 会根据当前界面调整读取频率
 
-static const char *menu_items[] = {
-    "Attitude",
-    "Storage",
-    "Setting",
-    "LED",
-};
-#define MENU_ITEM_COUNT   3
 
-static uint8_t menu_cursor = 0;   // 主菜单当前光标位置
+// ui_task.c
+#define MENU_VISIBLE_ROWS   4   // 一屏能显示3行
+
+// 数组下标对应UI_State_t枚举值，值是它的父级页面
+static const UI_State_t ui_parent_map[UI_PAGE_COUNT] = {
+    [UI_MAIN_MENU]         = UI_MAIN_MENU,   // 主菜单已经是顶层，长按也还是留在主菜单
+    [UI_ATTITUDE_PAGE]     = UI_MAIN_MENU,
+    [UI_STORAGE_PAGE]      = UI_MAIN_MENU,
+    [UI_SETTING_PAGE]      = UI_MAIN_MENU,
+    [UI_LED_MENU]          = UI_MAIN_MENU,
+    [UI_LED_ONBOARD_PAGE]  = UI_LED_MENU,    // 板载LED页面的上一级是LED菜单，不是主菜单
+};
+
+
+typedef struct {
+    const char *name;
+    UI_State_t  target;
+} MenuEntry_t;
+
+
+// 一个"菜单项"包含：显示的名字 + 选中它按确认键要跳到哪个页面
+
+// 主菜单表——以后加菜单项，只需要在这里加一行
+static const MenuEntry_t main_menu[] = {
+    {"Attitude", UI_ATTITUDE_PAGE},
+    {"Storage",  UI_STORAGE_PAGE},
+    {"Setting",  UI_SETTING_PAGE},
+    {"LED",      UI_LED_MENU},
+};
+#define MAIN_MENU_COUNT   (sizeof(main_menu)/sizeof(main_menu[0]))
+
+// LED子菜单表
+static const MenuEntry_t led_menu[] = {
+    {"Onboard LED", UI_LED_ONBOARD_PAGE},
+    {"WS2812",      UI_LED_MENU},   // WS2812暂时没做，选中它还是留在本菜单，不跳转
+};
+#define LED_MENU_COUNT   (sizeof(led_menu)/sizeof(led_menu[0]))
 
 // ---------- 各页面的绘制函数 ----------
 
-static void Draw_Main_Menu(void)
+// static void Draw_Main_Menu(void)
+// {
+//     OLED_Clear();
+//     OLED_ShowString(0, 0, (uint8_t*)"== Main Menu ==", 12, 1);
+//     for(int i = 0; i < MENU_ITEM_COUNT; i++)
+//     {
+//         uint8_t y = 16 + i * 16;   // 行间距从14改成16，跟字体实际高度对齐
+//         if(i == menu_cursor)
+//         {
+//             OLED_FillRect(0, y, 127, 16, 1);   // 高亮条高度从12改成16
+//             OLED_ShowString(0, y, (uint8_t*)menu_items[i], 12, 0);
+//         }
+//         else
+//         {
+//             OLED_ShowString(0, y, (uint8_t*)menu_items[i], 12, 1);
+//         }
+//     }
+//     OLED_Refresh();
+// }
+
+static void Draw_Led_Onboard_Page(void)
 {
     OLED_Clear();
-    OLED_ShowString(0, 0, (uint8_t*)"== Main Menu ==", 12, 1);
-    for(int i = 0; i < MENU_ITEM_COUNT; i++)
-    {
-        uint8_t y = 16 + i * 16;   // 行间距从14改成16，跟字体实际高度对齐
-        if(i == menu_cursor)
-        {
-            OLED_FillRect(0, y, 127, 16, 1);   // 高亮条高度从12改成16
-            OLED_ShowString(0, y, (uint8_t*)menu_items[i], 12, 0);
-        }
-        else
-        {
-            OLED_ShowString(0, y, (uint8_t*)menu_items[i], 12, 1);
-        }
-    }
+    OLED_ShowString(0, 0, (uint8_t*)"Onboard LED", 12, 1);
+    OLED_ShowString(0, 24, (uint8_t*)"State:", 12, 1);
+    OLED_ShowString(60, 24, (uint8_t*)(LED_Red_GetState() ? "ON " : "OFF"), 12, 1);
+    OLED_ShowString(0, 44, (uint8_t*)"KeyUp:Toggle", 12, 1);
     OLED_Refresh();
 }
 
@@ -92,67 +132,147 @@ static uint8_t Is_Long_Press(uint16_t evt)
     return (evt == KEY0_LONG || evt == KEY1_LONG || evt == KEY_UP_LONG);
 }
 
+static void Draw_Generic_Menu(const MenuEntry_t *entries, uint8_t count, uint8_t cursor, uint8_t scroll_offset)
+{
+    OLED_Clear();
+
+    uint8_t visible_count = (count - scroll_offset < MENU_VISIBLE_ROWS) 
+                             ? (count - scroll_offset) 
+                             : MENU_VISIBLE_ROWS;
+
+    for(uint8_t row = 0; row < visible_count; row++)
+    {
+        uint8_t item_index = scroll_offset + row;
+        uint8_t y = row * 16;
+
+        if(item_index == cursor)
+        {
+            OLED_FillRect(0, y, 127, 16, 1);
+            OLED_ShowString(0, y, (uint8_t*)entries[item_index].name, 12, 0);
+        }
+        else
+        {
+            OLED_ShowString(0, y, (uint8_t*)entries[item_index].name, 12, 1);
+        }
+    }
+
+    OLED_Refresh();
+}
+
+// cursor和scroll_offset都通过指针传入，函数内部会同时更新这两个状态
+static UI_State_t Handle_Generic_Menu(const MenuEntry_t *entries, uint8_t count, uint8_t *cursor, uint8_t *scroll_offset, uint16_t evt)
+{
+    if(evt == KEY0_SHORT)
+    {
+        *cursor = (*cursor == 0) ? (count - 1) : (*cursor - 1);
+    }
+    else if(evt == KEY1_SHORT)
+    {
+        *cursor = (*cursor + 1) % count;
+    }
+    else if(evt == KEY_UP_SHORT)
+    {
+        return entries[*cursor].target;
+    }
+
+    // ---- 根据cursor调整scroll_offset,确保光标始终在可见窗口内 ----
+    if(*cursor < *scroll_offset)
+    {
+        *scroll_offset = *cursor;   // 光标往上移出了窗口顶部，窗口跟着往上滚
+    }
+    else if(*cursor >= *scroll_offset + MENU_VISIBLE_ROWS)
+    {
+        *scroll_offset = *cursor - MENU_VISIBLE_ROWS + 1;   // 光标往下移出了窗口底部，窗口跟着往下滚
+    }
+
+    // 特殊情况：如果是从"最后一项"通过KEY1循环跳回"第一项"(0)，scroll_offset也要归零
+    if(*cursor == 0)
+    {
+        *scroll_offset = 0;
+    }
+    // 同理，如果是从"第一项"通过KEY0循环跳到"最后一项"，滚动窗口要跳到能显示最后一项的位置
+    else if(*cursor == count - 1)
+    {
+        *scroll_offset = (count > MENU_VISIBLE_ROWS) ? (count - MENU_VISIBLE_ROWS) : 0;
+    }
+
+    return UI_PAGE_COUNT;
+}
+
+
 void UI_Manager_Task_Entry(void *argument)
 {
     UI_State_t current_ui = UI_MAIN_MENU;
-    UI_State_t last_ui = (UI_State_t)0xFF;   // 强制第一次刷新
+    UI_State_t last_ui = UI_PAGE_COUNT;
+    uint8_t main_cursor = 0, main_scroll = 0;
+    uint8_t led_cursor = 0, led_scroll = 0;
     uint16_t evt;
 
     osMutexAcquire(I2CMutexHandle, osWaitForever);
-    Draw_Main_Menu();
+    Draw_Generic_Menu(main_menu, MAIN_MENU_COUNT, main_cursor, main_scroll);
     osMutexRelease(I2CMutexHandle);
-    last_ui = current_ui;   // 标记已经画过了,避免循环里重复画
+    last_ui = current_ui;
 
     for(;;)
     {
-        // 姿态页面需要持续刷新数值，所以不能永久阻塞等待，改用100ms超时
         uint32_t timeout = (current_ui == UI_ATTITUDE_PAGE) ? 1 : osWaitForever;
-
         osStatus_t status = osMessageQueueGet(KeyQueueHandle, &evt, NULL, timeout);
 
         if(status == osOK)
         {
             if(Is_Long_Press(evt))
             {
-                current_ui = UI_MAIN_MENU;   // 长按统一返回主菜单
+                // current_ui = UI_MAIN_MENU;
+                 current_ui = ui_parent_map[current_ui];   // 长按返回上一级
             }
             else if(current_ui == UI_MAIN_MENU)
             {
-                if(evt == KEY0_SHORT)
-                    menu_cursor = (menu_cursor == 0) ? (MENU_ITEM_COUNT - 1) : (menu_cursor - 1);
-                else if(evt == KEY1_SHORT)
-                    menu_cursor = (menu_cursor + 1) % MENU_ITEM_COUNT;
-                else if(evt == KEY_UP_SHORT)
-                    current_ui = (UI_State_t)(menu_cursor + 1);   // 进入选中的页面
+                UI_State_t target = Handle_Generic_Menu(main_menu, MAIN_MENU_COUNT, &main_cursor, &main_scroll, evt);
+                if(target != UI_PAGE_COUNT) current_ui = target;
+
                 if(current_ui == UI_MAIN_MENU)
-                    Draw_Main_Menu();   // 菜单里任何操作都要重绘一次（光标移动也要看到变化）
+                {
+                    osMutexAcquire(I2CMutexHandle, osWaitForever);
+                    Draw_Generic_Menu(main_menu, MAIN_MENU_COUNT, main_cursor, main_scroll);
+                    osMutexRelease(I2CMutexHandle);
+                }
             }
-            // 子页面里，短按事件暂时不处理，先留空，以后可以扩展具体功能
+            else if(current_ui == UI_LED_MENU)
+            {
+                UI_State_t target = Handle_Generic_Menu(led_menu, LED_MENU_COUNT, &led_cursor, &led_scroll, evt);
+                if(target != UI_PAGE_COUNT) current_ui = target;
+
+                if(current_ui == UI_LED_MENU)
+                {
+                    osMutexAcquire(I2CMutexHandle, osWaitForever);
+                    Draw_Generic_Menu(led_menu, LED_MENU_COUNT, led_cursor, led_scroll);
+                    osMutexRelease(I2CMutexHandle);
+                }
+            }
+            // ... LED_ONBOARD_PAGE分支不变
         }
 
-        // ---------- 界面切换检测，只在切换时重绘一次静态内容 ----------
         if(current_ui != last_ui)
         {
             osMutexAcquire(I2CMutexHandle, osWaitForever);
             switch(current_ui)
             {
-                case UI_MAIN_MENU:       g_mpu_read_period = 200;Draw_Main_Menu();     break;
-                case UI_ATTITUDE_PAGE:   g_mpu_read_period = 20;Draw_Attitude_Page();  break;
-                case UI_STORAGE_PAGE:    g_mpu_read_period = 200;Draw_Storage_Page();   break;
-                case UI_SETTING_PAGE:    g_mpu_read_period = 200;Draw_Setting_Page();   break;
-                default: break;
+                case UI_MAIN_MENU:  g_mpu_read_period = 200; Draw_Generic_Menu(main_menu, MAIN_MENU_COUNT, main_cursor, main_scroll); break;
+                case UI_LED_MENU:   g_mpu_read_period = 200; Draw_Generic_Menu(led_menu, LED_MENU_COUNT, led_cursor, led_scroll);       break;
+                case UI_ATTITUDE_PAGE:    g_mpu_read_period = 20;  Draw_Attitude_Page();     break;
+                case UI_STORAGE_PAGE:     g_mpu_read_period = 200; Draw_Storage_Page();       break;
+                case UI_SETTING_PAGE:     g_mpu_read_period = 200; Draw_Setting_Page();       break;
+                case UI_LED_ONBOARD_PAGE: g_mpu_read_period = 200; Draw_Led_Onboard_Page();   break;
+                default: g_mpu_read_period = 200; break;
             }
             osMutexRelease(I2CMutexHandle);
             last_ui = current_ui;
         }
         else if(current_ui == UI_ATTITUDE_PAGE)
         {
-            // 停留在姿态页面时，持续刷新数值部分
             osMutexAcquire(I2CMutexHandle, osWaitForever);
             Update_Attitude_Values();
             osMutexRelease(I2CMutexHandle);
         }
-//         UBaseType_t ui_free = uxTaskGetStackHighWaterMark(NULL);
-// printf("UI task stack free: %lu words\r\n", (unsigned long)ui_free);
     }
 }

@@ -61,8 +61,8 @@ void Error_Handler(void);
 #define KEY1_GPIO_Port GPIOE
 #define KEY0_Pin GPIO_PIN_4
 #define KEY0_GPIO_Port GPIOE
-#define RED_Pin GPIO_PIN_5
-#define RED_GPIO_Port GPIOE
+#define GREEN_Pin GPIO_PIN_5
+#define GREEN_GPIO_Port GPIOE
 #define OLED_SCK_Pin GPIO_PIN_10
 #define OLED_SCK_GPIO_Port GPIOF
 #define KEY_UP_Pin GPIO_PIN_0
@@ -71,8 +71,8 @@ void Error_Handler(void);
 #define OLED_VCC_GPIO_Port GPIOB
 #define OLED_SDA_Pin GPIO_PIN_11
 #define OLED_SDA_GPIO_Port GPIOF
-#define GREEN_Pin GPIO_PIN_5
-#define GREEN_GPIO_Port GPIOB
+#define RED_Pin GPIO_PIN_5
+#define RED_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

@@ -31,6 +31,8 @@
 #include "mpu_task.h"
 #include "usart.h"
 #include "stdio.h"
+#include "led_task.h"
+#include "storage_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -80,10 +82,29 @@ const osThreadAttr_t HeartbeatTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for StorageTask */
+osThreadId_t StorageTaskHandle;
+const osThreadAttr_t StorageTask_attributes = {
+  .name = "StorageTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for LedTask */
+osThreadId_t LedTaskHandle;
+const osThreadAttr_t LedTask_attributes = {
+  .name = "LedTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for KeyQueue */
 osMessageQueueId_t KeyQueueHandle;
 const osMessageQueueAttr_t KeyQueue_attributes = {
   .name = "KeyQueue"
+};
+/* Definitions for StorageCmdQueue */
+osMessageQueueId_t StorageCmdQueueHandle;
+const osMessageQueueAttr_t StorageCmdQueue_attributes = {
+  .name = "StorageCmdQueue"
 };
 /* Definitions for I2CMutex */
 osMutexId_t I2CMutexHandle;
@@ -95,6 +116,16 @@ osMutexId_t AttitudeMutexHandle;
 const osMutexAttr_t AttitudeMutex_attributes = {
   .name = "AttitudeMutex"
 };
+/* Definitions for SPIMutex */
+osMutexId_t SPIMutexHandle;
+const osMutexAttr_t SPIMutex_attributes = {
+  .name = "SPIMutex"
+};
+/* Definitions for MetaDataMutex */
+osMutexId_t MetaDataMutexHandle;
+const osMutexAttr_t MetaDataMutex_attributes = {
+  .name = "MetaDataMutex"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -105,6 +136,8 @@ void Key_Scan_Task(void *argument);
 void UI_Manager_Task(void *argument);
 void MPU_Read_Task(void *argument);
 void Hearbeat_Task(void *argument);
+void Storage_Task(void *argument);
+void Led_Task(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -138,6 +171,12 @@ void MX_FREERTOS_Init(void) {
   /* creation of AttitudeMutex */
   AttitudeMutexHandle = osMutexNew(&AttitudeMutex_attributes);
 
+  /* creation of SPIMutex */
+  SPIMutexHandle = osMutexNew(&SPIMutex_attributes);
+
+  /* creation of MetaDataMutex */
+  MetaDataMutexHandle = osMutexNew(&MetaDataMutex_attributes);
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -153,6 +192,9 @@ void MX_FREERTOS_Init(void) {
   /* Create the queue(s) */
   /* creation of KeyQueue */
   KeyQueueHandle = osMessageQueueNew (5, sizeof(uint16_t), &KeyQueue_attributes);
+
+  /* creation of StorageCmdQueue */
+  StorageCmdQueueHandle = osMessageQueueNew (2, sizeof(StorageCmd_t), &StorageCmdQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -170,6 +212,12 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of HeartbeatTask */
   HeartbeatTaskHandle = osThreadNew(Hearbeat_Task, NULL, &HeartbeatTask_attributes);
+
+  /* creation of StorageTask */
+  StorageTaskHandle = osThreadNew(Storage_Task, NULL, &StorageTask_attributes);
+
+  /* creation of LedTask */
+  LedTaskHandle = osThreadNew(Led_Task, NULL, &LedTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -257,17 +305,56 @@ void Hearbeat_Task(void *argument)
     // oled_Refresh();
     // osDelay(100);
     // i++;
-    // if(i >= 20)   // 20ms*20=400msé—?
+    // if(i >= 20)   // 20ms*20=400msï¿½?????
     // {
     //   HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     //   i = 0;
     // }
-    HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
+    HAL_GPIO_TogglePin(GREEN_GPIO_Port, GREEN_Pin);
     osDelay(500);
-    HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
+    HAL_GPIO_TogglePin(GREEN_GPIO_Port, GREEN_Pin);
     osDelay(500);
   }
   /* USER CODE END Hearbeat_Task */
+}
+
+/* USER CODE BEGIN Header_Storage_Task */
+/**
+* @brief Function implementing the StorageTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Storage_Task */
+void Storage_Task(void *argument)
+{
+  /* USER CODE BEGIN Storage_Task */
+  /* Infinite loop */
+
+  Storage_Task_Entry(argument);
+  // for(;;)
+  // {
+  //   osDelay(1);
+  // }
+  /* USER CODE END Storage_Task */
+}
+
+/* USER CODE BEGIN Header_Led_Task */
+/**
+* @brief Function implementing the LedTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Led_Task */
+void Led_Task(void *argument)
+{
+  /* USER CODE BEGIN Led_Task */
+  LED_Task_Entry(argument);
+  /* Infinite loop */
+  // for(;;)
+  // {
+  //   osDelay(1);
+  // }
+  /* USER CODE END Led_Task */
 }
 
 /* Private application code --------------------------------------------------*/

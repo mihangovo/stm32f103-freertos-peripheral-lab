@@ -57,6 +57,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/TASK/ui_task.c
     User/TASK/mpu_task.c
     User/NORFLASH/norflash.c
+    User/TASK/led_task.c
+    User/TASK/storage_task.c
 )
 
 # Add include paths

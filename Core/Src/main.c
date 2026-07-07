@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include "norflash.h"
 #include <string.h>
+#include "storage_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -105,7 +106,7 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
- __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�????? 50%
+ __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�?????? 50%
 
   iic_init();     /* 初始化IIC总线 */  
   OLED_Init();   /* 初始化OLED */ 
@@ -128,25 +129,27 @@ int main(void)
            id);
   }
 
-  const uint8_t test_text[] = "STM32 SPI TEST";
-  uint8_t write_buf[32];
-  uint8_t read_buf[32] = {0};
-  uint32_t flash_size = 16 * 1024 * 1024; // W25Q128 = 16MB
-  uint32_t test_addr = flash_size - 100;
+  // const uint8_t test_text[] = "STM32 SPI TEST";
+  // uint8_t write_buf[32];
+  // uint8_t read_buf[32] = {0};
+  // uint32_t flash_size = 16 * 1024 * 1024; // W25Q128 = 16MB
+  // uint32_t test_addr = flash_size - 100;
 
-  sprintf((char *)write_buf, "%s", test_text);
-  norflash_write(write_buf, test_addr, sizeof(test_text));
+  // sprintf((char *)write_buf, "%s", test_text);
+  // norflash_write(write_buf, test_addr, sizeof(test_text));
 
-  norflash_read(read_buf, test_addr, sizeof(test_text));
+  // norflash_read(read_buf, test_addr, sizeof(test_text));
 
-  printf("Write: %s\r\n", write_buf);
-  printf("Read : %s\r\n", read_buf);
+  // printf("Write: %s\r\n", write_buf);
+  // printf("Read : %s\r\n", read_buf);
 
-  if (memcmp(write_buf, read_buf, sizeof(test_text)) == 0) {
-    printf("Flash R/W test: PASS\r\n");
-  } else {
-    printf("Flash R/W test: FAIL\r\n");
-  }
+  // if (memcmp(write_buf, read_buf, sizeof(test_text)) == 0) {
+  //   printf("Flash R/W test: PASS\r\n");
+  // } else {
+  //   printf("Flash R/W test: FAIL\r\n");
+  // }
+
+
   // 初始化MPU6050
   if (MPU_Init() != 0) {
     printf("mpu_init err");
@@ -161,12 +164,14 @@ int main(void)
     HAL_Delay(200);
     printf("dmp_init err");
     OLED_ShowString(0, 32,(uint8_t *)"dmp_init failed", 16, 1);
+    OLED_Refresh();
     // 重试
   }
 
   OLED_Clear();
+  OLED_Refresh();
 
-
+  Meta_Load();
 
   
   uint16_t i = 0;
