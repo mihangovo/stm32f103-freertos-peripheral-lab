@@ -319,7 +319,9 @@ void UI_Manager_Task_Entry(void *argument)
             }
             else
             {
+                osMutexAcquire(I2CMutexHandle, osWaitForever);
                 UI_State_t target = ui_pages[current_ui].on_key(evt);
+                osMutexRelease(I2CMutexHandle);
                 if(target != UI_PAGE_COUNT) current_ui = target;
             }
         }
