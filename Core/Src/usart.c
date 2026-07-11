@@ -174,20 +174,16 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
         }
         printf("\r\n");
 
-        // 检查末尾是不是\r\n结尾（可选，如果你想严格校验格式）
+        // 检查末尾是不是\r\n结尾（可选，如果你想严格校验格式），去掉后两条路径共用这个长度
+        uint16_t content_len = Size;
         if(Size >= 2 && uart_rx_buffer[Size-2] == '\r' && uart_rx_buffer[Size-1] == '\n')
         {
-            uint16_t content_len = Size - 2;   // 去掉\r\n，只保留实际内容长度
-            Storage_RequestSaveHistory((char*)uart_rx_buffer, content_len);
+            content_len = Size - 2;   // 去掉\r\n，只保留实际内容长度
         }
-        else
-        {
-            // 没有以\r\n结尾，你可以选择依然保存（去掉这个判断），或者丢弃这次数据
-            Storage_RequestSaveHistory((char*)uart_rx_buffer, Size);
-        }
+        Storage_RequestSaveHistory((char*)uart_rx_buffer, content_len);
 
         UartLine_t mon_line;
-        uint16_t mon_len = (Size > UART_LINE_MAXLEN) ? UART_LINE_MAXLEN : Size;
+        uint16_t mon_len = (content_len > UART_LINE_MAXLEN) ? UART_LINE_MAXLEN : content_len;
         memcpy(mon_line.text, uart_rx_buffer, mon_len);
         mon_line.len = mon_len;
         osMessageQueuePut(UartLineQueueHandle, &mon_line, 0, 0);
