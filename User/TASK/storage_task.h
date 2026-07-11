@@ -22,6 +22,7 @@ typedef struct {
 typedef enum {
     STORAGE_CMD_SAVE_STATE = 0,
     STORAGE_CMD_SAVE_HISTORY,
+    STORAGE_CMD_CLEAR_HISTORY,
 } StorageCmdType_t;
 
 typedef struct {
@@ -43,6 +44,7 @@ void Storage_Task_Entry(void *argument);
 MetaData_t* Storage_GetMeta(void);         // 获取meta数据指针(读写前请用MetaDataMutexHandle保护)
 void Storage_RequestSaveState(void);       // 请求保存当前meta状态到Flash
 void Storage_RequestSaveHistory(const char *str, uint16_t len);  // 请求追加一条历史记录
+void Storage_RequestClearHistory(void);   // 请求清空所有历史记录
 void Meta_Load(void);                     // 上电时从Flash加载meta数据到RAM
 
 // UI翻页读取用：offset=0表示最新一条，1表示倒数第二条，以此类推

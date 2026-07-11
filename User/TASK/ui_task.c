@@ -208,26 +208,49 @@ static void Attitude_OnTick(void)
 }
 
 // ================= Storage 页面 =================
-static uint8_t storage_history_offset = 0;   // 0=最新，最大 FLASH_HISTORY_SLOT_COUNT-1
+// 0=最新的一条，数值越大越旧，跟主菜单一样是"光标+滚动窗口"的列表交互
+#define HISTORY_VISIBLE_ROWS   4
+
+static uint8_t storage_cursor = 0;
+static uint8_t storage_scroll = 0;
 
 static void Draw_Storage_Page(void)
 {
-    HistoryRecord_t rec;
-    char header[24];
-
     OLED_Clear();
 
-    snprintf(header, sizeof(header), "History %d/%d", storage_history_offset, FLASH_HISTORY_SLOT_COUNT);
-    OLED_ShowString(0, 0, (uint8_t*)header, 12, 1);
+    for(uint8_t row = 0; row < HISTORY_VISIBLE_ROWS; row++)
+    {
+        uint8_t offset = storage_scroll + row;
+        if(offset >= FLASH_HISTORY_SLOT_COUNT)
+        {
+            break;
+        }
 
-    if(Storage_ReadHistoryByOffset(storage_history_offset, &rec))
-    {
-        rec.content[rec.length] = '\0';
-        OLED_ShowStringWrapped(0, 16, (uint8_t*)rec.content, 12, 1, 3);
-    }
-    else
-    {
-        OLED_ShowString(0, 16, (uint8_t*)"Empty", 12, 1);
+        HistoryRecord_t rec;
+        char line[OLED_LINE_CHARS_12PT + 1];
+
+        if(Storage_ReadHistoryByOffset(offset, &rec))
+        {
+            rec.content[rec.length] = '\0';
+            uint8_t take = (rec.length > OLED_LINE_CHARS_12PT) ? OLED_LINE_CHARS_12PT : rec.length;
+            memcpy(line, rec.content, take);
+            line[take] = '\0';
+        }
+        else
+        {
+            strcpy(line, "Empty");
+        }
+
+        uint8_t y = row * 16;
+        if(offset == storage_cursor)
+        {
+            OLED_FillRect(0, y, 127, 16, 1);
+            OLED_ShowString(0, y, (uint8_t*)line, 12, 0);
+        }
+        else
+        {
+            OLED_ShowString(0, y, (uint8_t*)line, 12, 1);
+        }
     }
 
     OLED_Refresh();
@@ -236,7 +259,8 @@ static void Draw_Storage_Page(void)
 static void Storage_Enter(void)
 {
     g_mpu_read_period = 200;
-    storage_history_offset = 0;
+    storage_cursor = 0;
+    storage_scroll = 0;
     Draw_Storage_Page();
 }
 
@@ -244,14 +268,23 @@ static UI_State_t Storage_OnKey(uint16_t evt)
 {
     if(evt == KEY0_SHORT)
     {
-        if(storage_history_offset < FLASH_HISTORY_SLOT_COUNT - 1) storage_history_offset++;
-        Draw_Storage_Page();
+        if(storage_cursor > 0) storage_cursor--;
     }
     else if(evt == KEY1_SHORT)
     {
-        if(storage_history_offset > 0) storage_history_offset--;
-        Draw_Storage_Page();
+        if(storage_cursor < FLASH_HISTORY_SLOT_COUNT - 1) storage_cursor++;
     }
+
+    if(storage_cursor < storage_scroll)
+    {
+        storage_scroll = storage_cursor;
+    }
+    else if(storage_cursor >= storage_scroll + HISTORY_VISIBLE_ROWS)
+    {
+        storage_scroll = storage_cursor - HISTORY_VISIBLE_ROWS + 1;
+    }
+
+    Draw_Storage_Page();
     return UI_PAGE_COUNT;
 }
 
@@ -259,8 +292,9 @@ static UI_State_t Storage_OnKey(uint16_t evt)
 static void Draw_Setting_Page(void)
 {
     OLED_Clear();
-    OLED_ShowString(0, 0, (uint8_t*)"Setting Page", 12, 1);
-    OLED_ShowString(0, 52, (uint8_t*)"Back:long press", 12, 1);
+    OLED_ShowString(0, 0, (uint8_t*)"Setting", 12, 1);
+    OLED_ShowString(0, 20, (uint8_t*)"Clear UART History", 12, 1);
+    OLED_ShowString(0, 40, (uint8_t*)"KeyUp:Confirm", 12, 1);
     OLED_Refresh();
 }
 
@@ -272,7 +306,15 @@ static void Setting_Enter(void)
 
 static UI_State_t Setting_OnKey(uint16_t evt)
 {
-    (void)evt;
+    if(evt == KEY_UP_SHORT)
+    {
+        Storage_RequestClearHistory();
+
+        OLED_Clear();
+        OLED_ShowString(0, 0, (uint8_t*)"Setting", 12, 1);
+        OLED_ShowString(0, 24, (uint8_t*)"History Cleared!", 12, 1);
+        OLED_Refresh();
+    }
     return UI_PAGE_COUNT;
 }
 
@@ -304,20 +346,45 @@ static UI_State_t LedOnboard_OnKey(uint16_t evt)
 }
 
 // ================= UartMonitor 页面 =================
-#define UART_MON_LINES   4
+// 内存里保留最近 UART_MON_BACKLOG 条(跟Storage的历史槽位数一致)，屏幕一次显示
+// UART_MON_VISIBLE_ROWS 条，KEY0/KEY1 移动光标+滚动窗口，交互方式和 Storage 页一致
+#define UART_MON_BACKLOG        15
+#define UART_MON_VISIBLE_ROWS   4
 
-static char uart_mon_buf[UART_MON_LINES][OLED_LINE_CHARS_12PT + 1];
+static char uart_mon_buf[UART_MON_BACKLOG][OLED_LINE_CHARS_12PT + 1];
+static uint8_t uart_mon_count = 0;    // 已经写入的行数(0~UART_MON_BACKLOG)
+static uint8_t uart_mon_cursor = 0;   // 当前高亮选中的行，0=最新
+static uint8_t uart_mon_scroll = 0;   // 可见窗口起始行
 
 static void Draw_Uart_Monitor_Page(void)
 {
     OLED_Clear();
-    for(uint8_t i = 0; i < UART_MON_LINES; i++)
+
+    for(uint8_t row = 0; row < UART_MON_VISIBLE_ROWS; row++)
     {
-        OLED_ShowString(0, i * 16, (uint8_t*)uart_mon_buf[i], 12, 1);
+        uint8_t idx = uart_mon_scroll + row;
+        if(idx >= uart_mon_count)
+        {
+            break;
+        }
+
+        uint8_t y = row * 16;
+        if(idx == uart_mon_cursor)
+        {
+            OLED_FillRect(0, y, 127, 16, 1);
+            OLED_ShowString(0, y, (uint8_t*)uart_mon_buf[idx], 12, 0);
+        }
+        else
+        {
+            OLED_ShowString(0, y, (uint8_t*)uart_mon_buf[idx], 12, 1);
+        }
     }
+
     OLED_Refresh();
 }
 
+// 新内容总是写进第0行(最新)，其余行依次往下顶，超出 UART_MON_BACKLOG 的最旧一条被顶出去；
+// 缓冲区没填满时多出来的行本来就是空字符串，顶来顶去也没有副作用
 static void UartMon_PushWrapped(const char *text, uint16_t len)
 {
     uint16_t offset = 0;
@@ -327,13 +394,18 @@ static void UartMon_PushWrapped(const char *text, uint16_t len)
         uint16_t remain = len - offset;
         uint8_t take = (remain > OLED_LINE_CHARS_12PT) ? OLED_LINE_CHARS_12PT : (uint8_t)remain;
 
-        for(uint8_t i = 0; i < UART_MON_LINES - 1; i++)
+        for(uint8_t i = UART_MON_BACKLOG - 1; i > 0; i--)
         {
-            memcpy(uart_mon_buf[i], uart_mon_buf[i + 1], sizeof(uart_mon_buf[i]));
+            memcpy(uart_mon_buf[i], uart_mon_buf[i - 1], sizeof(uart_mon_buf[i]));
         }
 
-        memcpy(uart_mon_buf[UART_MON_LINES - 1], text + offset, take);
-        uart_mon_buf[UART_MON_LINES - 1][take] = '\0';
+        memcpy(uart_mon_buf[0], text + offset, take);
+        uart_mon_buf[0][take] = '\0';
+
+        if(uart_mon_count < UART_MON_BACKLOG)
+        {
+            uart_mon_count++;
+        }
 
         offset += take;
     }
@@ -347,7 +419,30 @@ static void UartMon_Enter(void)
 
 static UI_State_t UartMon_OnKey(uint16_t evt)
 {
-    (void)evt;
+    if(uart_mon_count == 0)
+    {
+        return UI_PAGE_COUNT;
+    }
+
+    if(evt == KEY0_SHORT)
+    {
+        if(uart_mon_cursor > 0) uart_mon_cursor--;
+    }
+    else if(evt == KEY1_SHORT)
+    {
+        if(uart_mon_cursor < uart_mon_count - 1) uart_mon_cursor++;
+    }
+
+    if(uart_mon_cursor < uart_mon_scroll)
+    {
+        uart_mon_scroll = uart_mon_cursor;
+    }
+    else if(uart_mon_cursor >= uart_mon_scroll + UART_MON_VISIBLE_ROWS)
+    {
+        uart_mon_scroll = uart_mon_cursor - UART_MON_VISIBLE_ROWS + 1;
+    }
+
+    Draw_Uart_Monitor_Page();
     return UI_PAGE_COUNT;
 }
 

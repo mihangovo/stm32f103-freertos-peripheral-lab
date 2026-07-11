@@ -104,6 +104,25 @@ static void History_Append(const char *str, uint16_t len)
     Meta_Save();   // 索引变了，顺带把meta也存一下
 }
 
+// ---------- 内部：擦除所有历史记录槽位，并把写入指针归零 ----------
+static void History_ClearAll(void)
+{
+    uint8_t slot;
+
+    osMutexAcquire(SPIMutexHandle, osWaitForever);
+    for(slot = 0; slot < FLASH_HISTORY_SLOT_COUNT; slot++)
+    {
+        norflash_erase_sector(FLASH_HISTORY_START_SECTOR + slot);
+    }
+    osMutexRelease(SPIMutexHandle);
+
+    osMutexAcquire(MetaDataMutexHandle, osWaitForever);
+    g_meta.history_next_index = 0;
+    osMutexRelease(MetaDataMutexHandle);
+
+    Meta_Save();
+}
+
 // ---------- 对外接口 ----------
 MetaData_t* Storage_GetMeta(void)
 {
@@ -124,6 +143,14 @@ void Storage_RequestSaveHistory(const char *str, uint16_t len)
     cmd.history_len = (len > HISTORY_STR_MAXLEN) ? HISTORY_STR_MAXLEN : len;
     memcpy(cmd.history_str, str, cmd.history_len);
     osMessageQueuePut(StorageCmdQueueHandle, &cmd, 0, 0);
+}
+
+void Storage_RequestClearHistory(void)
+{
+    StorageCmd_t cmd;
+    cmd.type = STORAGE_CMD_CLEAR_HISTORY;
+    // 低频的用户主动操作，用阻塞入队保证命令一定送达，不会被队列满静默丢弃
+    osMessageQueuePut(StorageCmdQueueHandle, &cmd, 0, osWaitForever);
 }
 
 uint8_t Storage_ReadHistoryByOffset(uint8_t offset, HistoryRecord_t *out)
@@ -162,6 +189,9 @@ void Storage_Task_Entry(void *argument)
                     break;
                 case STORAGE_CMD_SAVE_HISTORY:
                     History_Append(cmd.history_str, cmd.history_len);
+                    break;
+                case STORAGE_CMD_CLEAR_HISTORY:
+                    History_ClearAll();
                     break;
             }
         }

@@ -194,10 +194,10 @@ void MX_FREERTOS_Init(void) {
   KeyQueueHandle = osMessageQueueNew (5, sizeof(uint16_t), &KeyQueue_attributes);
 
   /* creation of StorageCmdQueue */
-  StorageCmdQueueHandle = osMessageQueueNew (2, sizeof(StorageCmd_t), &StorageCmdQueue_attributes);
+  StorageCmdQueueHandle = osMessageQueueNew (10, sizeof(StorageCmd_t), &StorageCmdQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+  UartLineQueueHandle = osMessageQueueNew(16, sizeof(UartLine_t), NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -305,7 +305,7 @@ void Hearbeat_Task(void *argument)
     // oled_Refresh();
     // osDelay(100);
     // i++;
-    // if(i >= 20)   // 20ms*20=400msï¿??????
+    // if(i >= 20)   // 20ms*20=400msï¿???????
     // {
     //   HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     //   i = 0;

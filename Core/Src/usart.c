@@ -152,45 +152,100 @@ int __io_putchar(int ch)
 uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
 osMessageQueueId_t UartLineQueueHandle;
 
+// DMA是循环模式，硬件会一直不停地收，不需要也不能在回调里重新调用
+// HAL_UARTEx_ReceiveToIdle_DMA "重新武装"——那样做会让HAL内部记录的位置和硬件实际
+// 写入位置对不上，导致Size越滚越大、把早就处理过的旧数据当成新数据重复处理。
+// 正确做法是自己记住"上次处理到哪个位置"(uart_rd_pos)，每次只处理从上次位置到
+// 这次Size之间真正新增的字节；如果Size比上次小，说明缓冲区绕回了开头，要分两段处理。
+static uint16_t uart_rd_pos = 0;
+
+// 跨事件(甚至跨绕回边界)拼接一行内容，直到遇到'\n'才算一行结束
+static uint8_t  uart_line_acc[UART_LINE_MAXLEN];
+static uint16_t uart_line_acc_len = 0;
+
 // 在初始化阶段（比如main()里，MX_USARTx_Init()之后）调用一次
+// 注意：UartLineQueueHandle 不在这里创建——这个函数在main()里调度器启动前很早就被调用，
+// 在FreeRTOS调度器真正启动(osKernelStart)之前创建内核对象曾经导致过tick中断被永久屏蔽
+// (HAL_Delay全部卡死)，所以队列创建挪到了 freertos.c 的 MX_FREERTOS_Init() 里，
+// 跟其他队列(如StorageCmdQueueHandle)一样，在已验证安全的位置创建。
 void UART_Rx_Start(void)
 {
-    UartLineQueueHandle = osMessageQueueNew(4, sizeof(UartLine_t), NULL);
+    uart_rd_pos = 0;
+    uart_line_acc_len = 0;
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart_rx_buffer, UART_RX_BUFFER_SIZE);
     __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);   // 禁用DMA半传输中断，避免不必要的触发
+}
+
+// 保存并推送一条已经拆分干净的单行数据(不含\r\n)
+static void Uart_Emit_Line(const uint8_t *data, uint16_t len)
+{
+    if(len == 0)
+    {
+        return;
+    }
+
+    Storage_RequestSaveHistory((char*)data, len);
+
+    UartLine_t mon_line;
+    uint16_t mon_len = (len > UART_LINE_MAXLEN) ? UART_LINE_MAXLEN : len;
+    memcpy(mon_line.text, data, mon_len);
+    mon_line.len = mon_len;
+    osMessageQueuePut(UartLineQueueHandle, &mon_line, 0, 0);
+}
+
+// 把新增的这一段原始字节逐个喂进拼接缓冲区，遇到'\n'就把攒好的一行发出去
+static void Uart_Feed_New_Bytes(const uint8_t *data, uint16_t len)
+{
+    for(uint16_t i = 0; i < len; i++)
+    {
+        printf("%c", data[i]);
+
+        uint8_t c = data[i];
+
+        if(c == '\n')
+        {
+            uint16_t line_len = uart_line_acc_len;
+            if((line_len > 0) && (uart_line_acc[line_len - 1] == '\r'))
+            {
+                line_len--;
+            }
+            Uart_Emit_Line(uart_line_acc, line_len);
+            uart_line_acc_len = 0;
+        }
+        else if(uart_line_acc_len < UART_LINE_MAXLEN)
+        {
+            uart_line_acc[uart_line_acc_len++] = c;
+        }
+        // 超过UART_LINE_MAXLEN的部分直接丢弃，单行内容本来就只保留前面这些字节
+    }
 }
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if(huart->Instance == USART1)
     {
-        // Size就是这一次总共收到了多少字节
-         printf("\r\n");
-        printf("UART Rx Size=%d\r\n", Size);
-        printf("UART Data=");
-        for(uint16_t i = 0; i < Size; i++)
+        if(Size == uart_rd_pos)
         {
-            printf("%c", uart_rx_buffer[i]);
+            return;   // 没有新数据(理论上不会触发，防御性判断)
         }
+
+        printf("\r\nUART Rx Size=%d\r\nUART Data=", Size);
+
+        if(Size > uart_rd_pos)
+        {
+            // 没有绕回，新数据是一段连续区间
+            Uart_Feed_New_Bytes(&uart_rx_buffer[uart_rd_pos], Size - uart_rd_pos);
+        }
+        else
+        {
+            // 缓冲区绕回了开头，新数据分两段：[uart_rd_pos, 末尾) 和 [0, Size)
+            Uart_Feed_New_Bytes(&uart_rx_buffer[uart_rd_pos], UART_RX_BUFFER_SIZE - uart_rd_pos);
+            Uart_Feed_New_Bytes(&uart_rx_buffer[0], Size);
+        }
+
         printf("\r\n");
 
-        // 检查末尾是不是\r\n结尾（可选，如果你想严格校验格式），去掉后两条路径共用这个长度
-        uint16_t content_len = Size;
-        if(Size >= 2 && uart_rx_buffer[Size-2] == '\r' && uart_rx_buffer[Size-1] == '\n')
-        {
-            content_len = Size - 2;   // 去掉\r\n，只保留实际内容长度
-        }
-        Storage_RequestSaveHistory((char*)uart_rx_buffer, content_len);
-
-        UartLine_t mon_line;
-        uint16_t mon_len = (content_len > UART_LINE_MAXLEN) ? UART_LINE_MAXLEN : content_len;
-        memcpy(mon_line.text, uart_rx_buffer, mon_len);
-        mon_line.len = mon_len;
-        osMessageQueuePut(UartLineQueueHandle, &mon_line, 0, 0);
-
-        // 重新启动接收，准备接收下一条
-        HAL_UARTEx_ReceiveToIdle_DMA(huart, uart_rx_buffer, UART_RX_BUFFER_SIZE);
-        __HAL_DMA_DISABLE_IT(huart->hdmarx, DMA_IT_HT);
+        uart_rd_pos = Size;
     }
 }
 /* USER CODE END 1 */
