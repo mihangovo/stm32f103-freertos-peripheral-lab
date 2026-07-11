@@ -9,7 +9,8 @@
  
 #define OLED_CMD  0	//写命令
 #define OLED_DATA 1	//写数据
- 
+#define OLED_LINE_CHARS_12PT   21   // 12号字体在128px宽屏幕上一行最多可显示的字符数(128/6)
+
 void OLED_ClearPoint(uint8_t x,uint8_t y);
 void OLED_ColorTurn(uint8_t i);
 void OLED_DisplayTurn(uint8_t i);
@@ -31,7 +32,8 @@ void OLED_ShowPicture(uint8_t x,uint8_t y,uint8_t sizex,uint8_t sizey,uint8_t BM
 void OLED_Init(void);
 void OLED_ShowFloatNum(uint8_t x,uint8_t y,float num,uint8_t z_len,uint8_t f_len,uint8_t size1,uint8_t mode);
 void OLED_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t mode);
+void OLED_ShowStringWrapped(uint8_t x, uint8_t y, uint8_t *chr, uint8_t size1, uint8_t mode, uint8_t max_lines);
 
- 
+
 #endif
 

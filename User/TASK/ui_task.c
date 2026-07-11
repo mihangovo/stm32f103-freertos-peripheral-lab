@@ -204,36 +204,50 @@ static void Attitude_OnTick(void)
 }
 
 // ================= Storage 页面 =================
+static uint8_t storage_history_offset = 0;   // 0=最新，最大 FLASH_HISTORY_SLOT_COUNT-1
+
 static void Draw_Storage_Page(void)
 {
     HistoryRecord_t rec;
+    char header[24];
 
     OLED_Clear();
-    OLED_ShowString(0, 0, (uint8_t*)"History", 12, 1);
 
-    if(Storage_ReadHistoryByOffset(0, &rec))
+    snprintf(header, sizeof(header), "History %d/%d", storage_history_offset, FLASH_HISTORY_SLOT_COUNT);
+    OLED_ShowString(0, 0, (uint8_t*)header, 12, 1);
+
+    if(Storage_ReadHistoryByOffset(storage_history_offset, &rec))
     {
         rec.content[rec.length] = '\0';
-        OLED_ShowString(0, 20, (uint8_t*)rec.content, 12, 1);
+        OLED_ShowStringWrapped(0, 16, (uint8_t*)rec.content, 12, 1, 3);
     }
     else
     {
-        OLED_ShowString(0, 20, (uint8_t*)"Empty", 12, 1);
+        OLED_ShowString(0, 16, (uint8_t*)"Empty", 12, 1);
     }
 
-    OLED_ShowString(0, 52, (uint8_t*)"Back", 12, 1);
     OLED_Refresh();
 }
 
 static void Storage_Enter(void)
 {
     g_mpu_read_period = 200;
+    storage_history_offset = 0;
     Draw_Storage_Page();
 }
 
 static UI_State_t Storage_OnKey(uint16_t evt)
 {
-    (void)evt;
+    if(evt == KEY0_SHORT)
+    {
+        if(storage_history_offset < FLASH_HISTORY_SLOT_COUNT - 1) storage_history_offset++;
+        Draw_Storage_Page();
+    }
+    else if(evt == KEY1_SHORT)
+    {
+        if(storage_history_offset > 0) storage_history_offset--;
+        Draw_Storage_Page();
+    }
     return UI_PAGE_COUNT;
 }
 

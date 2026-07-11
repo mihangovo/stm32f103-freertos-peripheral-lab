@@ -1,5 +1,6 @@
 
 #include "stdlib.h"
+#include <string.h>
 #include "oled.h"
 #include "oledfont.h"
 #include "myiic.h"
@@ -240,9 +241,9 @@ void OLED_ShowChar(uint8_t x,uint8_t y,uint8_t chr,uint8_t size1,uint8_t mode)
  
  
 //显示字符串
-//x,y:起点坐标  
-//size1:字体大小 
-//*chr:字符串起始地址 
+//x,y:起点坐标
+//size1:字体大小
+//*chr:字符串起始地址
 //mode:0,反色显示;1,正常显示
 void OLED_ShowString(uint8_t x,uint8_t y,uint8_t *chr,uint8_t size1,uint8_t mode)
 {
@@ -254,7 +255,38 @@ void OLED_ShowString(uint8_t x,uint8_t y,uint8_t *chr,uint8_t size1,uint8_t mode
 		chr++;
   }
 }
- 
+
+//在指定位置显示一个自动换行的字符串，超出max_lines的内容会被截断
+//x,y:起点坐标  size1:字体大小  mode:0反色 1正常  max_lines:最多显示的行数(行高固定16px)
+void OLED_ShowStringWrapped(uint8_t x, uint8_t y, uint8_t *chr, uint8_t size1, uint8_t mode, uint8_t max_lines)
+{
+    uint8_t char_w = (size1 == 8) ? 6 : (size1 / 2);
+    uint8_t max_chars_per_line = (128 - x) / char_w;
+    uint8_t line_buf[OLED_LINE_CHARS_12PT + 1];
+    uint16_t total_len = (uint16_t)strlen((char *)chr);
+    uint16_t offset = 0;
+    uint8_t line = 0;
+
+    if(max_chars_per_line > OLED_LINE_CHARS_12PT)
+    {
+        max_chars_per_line = OLED_LINE_CHARS_12PT;
+    }
+
+    while((line < max_lines) && (offset < total_len))
+    {
+        uint16_t remain = total_len - offset;
+        uint8_t take = (remain > max_chars_per_line) ? max_chars_per_line : (uint8_t)remain;
+
+        memcpy(line_buf, chr + offset, take);
+        line_buf[take] = '\0';
+
+        OLED_ShowString(x, y + line * 16, line_buf, size1, mode);
+
+        offset += take;
+        line++;
+    }
+}
+
 //m^n
 uint32_t OLED_Pow(uint8_t m,uint8_t n)
 {
