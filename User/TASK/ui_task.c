@@ -7,6 +7,8 @@
 #include "task.h"
 #include "led_task.h"
 #include "storage_task.h"
+#include "usart.h"
+#include <string.h>
 
 extern osMessageQueueId_t KeyQueueHandle;
 extern osMutexId_t I2CMutexHandle;
@@ -24,6 +26,7 @@ static const UI_State_t ui_parent_map[UI_PAGE_COUNT] = {
     [UI_SETTING_PAGE]      = UI_MAIN_MENU,
     [UI_LED_MENU]          = UI_MAIN_MENU,
     [UI_LED_ONBOARD_PAGE]  = UI_LED_MENU,
+    [UI_UART_MONITOR_PAGE] = UI_MAIN_MENU,
 };
 
 typedef struct {
@@ -36,6 +39,7 @@ static const MenuEntry_t main_menu[] = {
     {"Storage",  UI_STORAGE_PAGE},
     {"Setting",  UI_SETTING_PAGE},
     {"LED",      UI_LED_MENU},
+    {"UART",     UI_UART_MONITOR_PAGE},
 };
 #define MAIN_MENU_COUNT   (sizeof(main_menu)/sizeof(main_menu[0]))
 
@@ -299,14 +303,80 @@ static UI_State_t LedOnboard_OnKey(uint16_t evt)
     return UI_PAGE_COUNT;
 }
 
+// ================= UartMonitor 页面 =================
+#define UART_MON_LINES   4
+
+static char uart_mon_buf[UART_MON_LINES][OLED_LINE_CHARS_12PT + 1];
+
+static void Draw_Uart_Monitor_Page(void)
+{
+    OLED_Clear();
+    for(uint8_t i = 0; i < UART_MON_LINES; i++)
+    {
+        OLED_ShowString(0, i * 16, (uint8_t*)uart_mon_buf[i], 12, 1);
+    }
+    OLED_Refresh();
+}
+
+static void UartMon_PushWrapped(const char *text, uint16_t len)
+{
+    uint16_t offset = 0;
+
+    while(offset < len)
+    {
+        uint16_t remain = len - offset;
+        uint8_t take = (remain > OLED_LINE_CHARS_12PT) ? OLED_LINE_CHARS_12PT : (uint8_t)remain;
+
+        for(uint8_t i = 0; i < UART_MON_LINES - 1; i++)
+        {
+            memcpy(uart_mon_buf[i], uart_mon_buf[i + 1], sizeof(uart_mon_buf[i]));
+        }
+
+        memcpy(uart_mon_buf[UART_MON_LINES - 1], text + offset, take);
+        uart_mon_buf[UART_MON_LINES - 1][take] = '\0';
+
+        offset += take;
+    }
+}
+
+static void UartMon_Enter(void)
+{
+    g_mpu_read_period = 200;
+    Draw_Uart_Monitor_Page();
+}
+
+static UI_State_t UartMon_OnKey(uint16_t evt)
+{
+    (void)evt;
+    return UI_PAGE_COUNT;
+}
+
+static void UartMon_OnTick(void)
+{
+    UartLine_t line;
+    uint8_t updated = 0;
+
+    while(osMessageQueueGet(UartLineQueueHandle, &line, NULL, 0) == osOK)
+    {
+        UartMon_PushWrapped(line.text, line.len);
+        updated = 1;
+    }
+
+    if(updated)
+    {
+        Draw_Uart_Monitor_Page();
+    }
+}
+
 // ================= 调度表 =================
 static const UI_Page_t ui_pages[UI_PAGE_COUNT] = {
-    [UI_MAIN_MENU]        = { MainMenu_Enter,   MainMenu_OnKey,   NULL },
-    [UI_ATTITUDE_PAGE]    = { Attitude_Enter,   Attitude_OnKey,   Attitude_OnTick },
-    [UI_STORAGE_PAGE]     = { Storage_Enter,    Storage_OnKey,    NULL },
-    [UI_SETTING_PAGE]     = { Setting_Enter,    Setting_OnKey,    NULL },
-    [UI_LED_MENU]         = { LedMenu_Enter,    LedMenu_OnKey,    NULL },
-    [UI_LED_ONBOARD_PAGE] = { LedOnboard_Enter, LedOnboard_OnKey, NULL },
+    [UI_MAIN_MENU]         = { MainMenu_Enter,   MainMenu_OnKey,   NULL },
+    [UI_ATTITUDE_PAGE]     = { Attitude_Enter,   Attitude_OnKey,   Attitude_OnTick },
+    [UI_STORAGE_PAGE]      = { Storage_Enter,    Storage_OnKey,    NULL },
+    [UI_SETTING_PAGE]      = { Setting_Enter,    Setting_OnKey,    NULL },
+    [UI_LED_MENU]          = { LedMenu_Enter,    LedMenu_OnKey,    NULL },
+    [UI_LED_ONBOARD_PAGE]  = { LedOnboard_Enter, LedOnboard_OnKey, NULL },
+    [UI_UART_MONITOR_PAGE] = { UartMon_Enter,    UartMon_OnKey,    UartMon_OnTick },
 };
 
 void UI_Manager_Task_Entry(void *argument)
