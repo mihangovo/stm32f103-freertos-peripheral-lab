@@ -29,13 +29,20 @@ extern "C" {
 #include "main.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "cmsis_os.h"
 /* USER CODE END Includes */
 
 extern UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN Private defines */
+#define UART_LINE_MAXLEN   64
 
+typedef struct {
+    char     text[UART_LINE_MAXLEN];
+    uint16_t len;
+} UartLine_t;
+
+extern osMessageQueueId_t UartLineQueueHandle;
 /* USER CODE END Private defines */
 
 void MX_USART1_UART_Init(void);

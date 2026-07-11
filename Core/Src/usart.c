@@ -23,6 +23,7 @@
 /* USER CODE BEGIN 0 */
 #include "storage_task.h"
 #include "stdio.h"
+#include <string.h>
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart1;
@@ -149,10 +150,12 @@ int __io_putchar(int ch)
 // 放在main.c或者你的串口处理文件里
 #define UART_RX_BUFFER_SIZE   256
 uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
+osMessageQueueId_t UartLineQueueHandle;
 
 // 在初始化阶段（比如main()里，MX_USARTx_Init()之后）调用一次
 void UART_Rx_Start(void)
 {
+    UartLineQueueHandle = osMessageQueueNew(4, sizeof(UartLine_t), NULL);
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart_rx_buffer, UART_RX_BUFFER_SIZE);
     __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);   // 禁用DMA半传输中断，避免不必要的触发
 }
@@ -182,6 +185,12 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
             // 没有以\r\n结尾，你可以选择依然保存（去掉这个判断），或者丢弃这次数据
             Storage_RequestSaveHistory((char*)uart_rx_buffer, Size);
         }
+
+        UartLine_t mon_line;
+        uint16_t mon_len = (Size > UART_LINE_MAXLEN) ? UART_LINE_MAXLEN : Size;
+        memcpy(mon_line.text, uart_rx_buffer, mon_len);
+        mon_line.len = mon_len;
+        osMessageQueuePut(UartLineQueueHandle, &mon_line, 0, 0);
 
         // 重新启动接收，准备接收下一条
         HAL_UARTEx_ReceiveToIdle_DMA(huart, uart_rx_buffer, UART_RX_BUFFER_SIZE);
