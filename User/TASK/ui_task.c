@@ -8,6 +8,7 @@
 #include "led_task.h"
 #include "storage_task.h"
 #include "usart.h"
+#include "watchdog_task.h"
 #include <string.h>
 
 extern osMessageQueueId_t KeyQueueHandle;
@@ -508,8 +509,9 @@ void UI_Manager_Task_Entry(void *argument)
 
     for(;;)
     {
-        uint32_t timeout = (ui_pages[current_ui].on_tick != NULL) ? 1 : osWaitForever;
+        uint32_t timeout = (ui_pages[current_ui].on_tick != NULL) ? 1 : 1000;
         osStatus_t status = osMessageQueueGet(KeyQueueHandle, &evt, NULL, timeout);
+        Watchdog_Checkin(WDG_TASK_UI);
 
         if(status == osOK)
         {
