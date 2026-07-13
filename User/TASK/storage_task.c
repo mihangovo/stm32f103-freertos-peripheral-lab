@@ -97,11 +97,25 @@ static void History_Append(const char *str, uint16_t len)
     g_meta.history_next_index = (slot + 1) % FLASH_HISTORY_SLOT_COUNT;
     osMutexRelease(MetaDataMutexHandle);
 
+    printf("[HistApp] enter slot=%u next=%u len=%u str=%.*s\r\n",
+           slot, g_meta.history_next_index, len, len, str);
+
     osMutexAcquire(SPIMutexHandle, osWaitForever);
     norflash_write((uint8_t*)&rec, History_Addr(slot), sizeof(HistoryRecord_t));
     osMutexRelease(SPIMutexHandle);
 
+    // 立刻读回校验，确认这条记录真的落到了Flash上
+    {
+        HistoryRecord_t verify;
+        osMutexAcquire(SPIMutexHandle, osWaitForever);
+        norflash_read((uint8_t*)&verify, History_Addr(slot), sizeof(HistoryRecord_t));
+        osMutexRelease(SPIMutexHandle);
+        printf("[HistApp] verify slot=%u magic=%08lx len=%u str=%.*s\r\n",
+               slot, verify.magic, verify.length, verify.length, verify.content);
+    }
+
     Meta_Save();   // 索引变了，顺带把meta也存一下
+    printf("[HistApp] meta saved, next_index now=%u\r\n", g_meta.history_next_index);
 }
 
 // ---------- 内部：擦除所有历史记录槽位，并把写入指针归零 ----------
@@ -139,10 +153,20 @@ void Storage_RequestSaveState(void)
 void Storage_RequestSaveHistory(const char *str, uint16_t len)
 {
     StorageCmd_t cmd;
+    osStatus_t st;
     cmd.type = STORAGE_CMD_SAVE_HISTORY;
     cmd.history_len = (len > HISTORY_STR_MAXLEN) ? HISTORY_STR_MAXLEN : len;
     memcpy(cmd.history_str, str, cmd.history_len);
-    osMessageQueuePut(StorageCmdQueueHandle, &cmd, 0, 0);
+    st = osMessageQueuePut(StorageCmdQueueHandle, &cmd, 0, 0);
+    if(st != osOK)
+    {
+        printf("[StorageReq] SAVE_HISTORY DROPPED! queue full, status=%d, count=%lu\r\n",
+               (int)st, osMessageQueueGetCount(StorageCmdQueueHandle));
+    }
+    else
+    {
+        printf("[StorageReq] SAVE_HISTORY queued ok, len=%u\r\n", cmd.history_len);
+    }
 }
 
 void Storage_RequestClearHistory(void)
@@ -167,6 +191,9 @@ uint8_t Storage_ReadHistoryByOffset(uint8_t offset, HistoryRecord_t *out)
     norflash_read((uint8_t*)out, History_Addr(target_slot), sizeof(HistoryRecord_t));
     osMutexRelease(SPIMutexHandle);
 
+    printf("[ReadOff] offset=%u next_index=%u latest=%u target=%u magic=%08lx\r\n",
+           offset, g_meta.history_next_index, latest_slot, target_slot, out->magic);
+
     return (out->magic == HISTORY_MAGIC) ? 1 : 0;   // 1=有效记录，0=空槽位
 }
 
@@ -177,10 +204,13 @@ void Storage_Task_Entry(void *argument)
 
     // Meta_Load();   // 上电先加载一次
 
+    printf("[StorageTask] alive, queue handle=%p\r\n", (void*)StorageCmdQueueHandle);
+
     for(;;)
     {
         if(osMessageQueueGet(StorageCmdQueueHandle, &cmd, NULL, osWaitForever) == osOK)
         {
+            printf("[StorageTask] dequeued cmd.type=%d\r\n", (int)cmd.type);
             switch(cmd.type)
             {
                 case STORAGE_CMD_SAVE_STATE:

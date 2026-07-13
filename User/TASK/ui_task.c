@@ -13,6 +13,7 @@
 extern osMessageQueueId_t KeyQueueHandle;
 extern osMutexId_t I2CMutexHandle;
 extern osMutexId_t AttitudeMutexHandle;
+extern osMutexId_t MetaDataMutexHandle;
 extern float g_pitch, g_roll, g_yaw;
 extern volatile uint32_t g_mpu_read_period;
 
@@ -474,11 +475,31 @@ static const UI_Page_t ui_pages[UI_PAGE_COUNT] = {
     [UI_UART_MONITOR_PAGE] = { UartMon_Enter,    UartMon_OnKey,    UartMon_OnTick },
 };
 
+// 把当前页面号写入meta并请求保存，跟led_task.c保存红灯状态用的是同一套模式
+static void UI_SavePageState(UI_State_t page)
+{
+    MetaData_t *meta = Storage_GetMeta();
+    osMutexAcquire(MetaDataMutexHandle, osWaitForever);
+    meta->last_ui_page = (uint8_t)page;
+    osMutexRelease(MetaDataMutexHandle);
+    Storage_RequestSaveState();
+}
+
 void UI_Manager_Task_Entry(void *argument)
 {
     UI_State_t current_ui = UI_MAIN_MENU;
     UI_State_t last_ui = UI_PAGE_COUNT;
     uint16_t evt;
+
+    // 上电时恢复上次所在的页面；数据非法(比如flash是首次使用的默认值)时退回主菜单
+    MetaData_t *meta = Storage_GetMeta();
+    osMutexAcquire(MetaDataMutexHandle, osWaitForever);
+    uint8_t saved_page = meta->last_ui_page;
+    osMutexRelease(MetaDataMutexHandle);
+    if(saved_page < UI_PAGE_COUNT)
+    {
+        current_ui = (UI_State_t)saved_page;
+    }
 
     osMutexAcquire(I2CMutexHandle, osWaitForever);
     ui_pages[current_ui].on_enter();
@@ -511,6 +532,7 @@ void UI_Manager_Task_Entry(void *argument)
             ui_pages[current_ui].on_enter();
             osMutexRelease(I2CMutexHandle);
             last_ui = current_ui;
+            UI_SavePageState(current_ui);
         }
         else if(ui_pages[current_ui].on_tick != NULL)
         {

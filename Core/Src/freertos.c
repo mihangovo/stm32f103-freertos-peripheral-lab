@@ -79,7 +79,7 @@ const osThreadAttr_t MPUReadTask_attributes = {
 osThreadId_t HeartbeatTaskHandle;
 const osThreadAttr_t HeartbeatTask_attributes = {
   .name = "HeartbeatTask",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for StorageTask */
@@ -220,7 +220,10 @@ void MX_FREERTOS_Init(void) {
   LedTaskHandle = osThreadNew(Led_Task, NULL, &LedTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+  printf("[RTOS] free heap after all creation = %u bytes\r\n", (unsigned)xPortGetFreeHeapSize());
+  printf("[RTOS] handles: Key=%p UI=%p MPU=%p Heartbeat=%p Storage=%p Led=%p\r\n",
+         (void*)KeyScanTaskHandle, (void*)UIManagerTaskHandle, (void*)MPUReadTaskHandle,
+         (void*)HeartbeatTaskHandle, (void*)StorageTaskHandle, (void*)LedTaskHandle);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -300,12 +303,13 @@ void Hearbeat_Task(void *argument)
   /* USER CODE BEGIN Hearbeat_Task */
   /* Infinite loop */
   uint8_t i = 0;
+  uint8_t hwm_counter = 0;
   for(;;)
   {
     // oled_Refresh();
     // osDelay(100);
     // i++;
-    // if(i >= 20)   // 20ms*20=400ms�???????
+    // if(i >= 20)   // 20ms*20=400ms闪烁
     // {
     //   HAL_GPIO_TogglePin(RED_GPIO_Port, RED_Pin);
     //   i = 0;
@@ -314,6 +318,21 @@ void Hearbeat_Task(void *argument)
     osDelay(500);
     HAL_GPIO_TogglePin(GREEN_GPIO_Port, GREEN_Pin);
     osDelay(500);
+
+    // 诊断：每10秒打印各任务栈的历史最小剩余量(高水位线)，单位字节
+    // 数值会随着各任务跑到过的最坏情况(OLED刷新/DMP解算/UART突发等)逐渐变小并趋于稳定
+    hwm_counter++;
+    if(hwm_counter >= 10)
+    {
+        hwm_counter = 0;
+        printf("[StackHWM] Key=%lu UI=%lu MPU=%lu Heartbeat=%lu Storage=%lu Led=%lu (bytes free, min ever)\r\n",
+               (unsigned long)(uxTaskGetStackHighWaterMark(KeyScanTaskHandle) * 4),
+               (unsigned long)(uxTaskGetStackHighWaterMark(UIManagerTaskHandle) * 4),
+               (unsigned long)(uxTaskGetStackHighWaterMark(MPUReadTaskHandle) * 4),
+               (unsigned long)(uxTaskGetStackHighWaterMark(HeartbeatTaskHandle) * 4),
+               (unsigned long)(uxTaskGetStackHighWaterMark(StorageTaskHandle) * 4),
+               (unsigned long)(uxTaskGetStackHighWaterMark(LedTaskHandle) * 4));
+    }
   }
   /* USER CODE END Hearbeat_Task */
 }
