@@ -20,6 +20,7 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "dma.h"
+#include "iwdg.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -106,11 +107,12 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM2_Init();
   MX_SPI2_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
   UART_Rx_Start();
  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
- __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整�???????? 50%
+ __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整到 50%
 
   iic_init();     /* 初始化IIC总线 */  
   OLED_Init();   /* 初始化OLED */ 
@@ -230,10 +232,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
