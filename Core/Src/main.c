@@ -110,6 +110,12 @@ int main(void)
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
+  if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST))
+  {
+      printf("[Watchdog] last reset was caused by IWDG (task hang recovered)\r\n");
+  }
+  __HAL_RCC_CLEAR_RESET_FLAGS();
+
   UART_Rx_Start();
  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整到 50%
