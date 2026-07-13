@@ -2,6 +2,7 @@
 #include "main.h"
 #include "storage_task.h"
 #include "stdio.h"
+#include "watchdog_task.h"
 
 extern osMutexId_t MetaDataMutexHandle;
 
@@ -46,6 +47,7 @@ void LED_Task_Entry(void *argument)
 
     for(;;)
     {
+        Watchdog_Checkin(WDG_TASK_LED);
         osDelay(500);   // 这个任务目前不需要持续工作，红灯只在按键触发时切换状态，主循环留空即可
     }
 }

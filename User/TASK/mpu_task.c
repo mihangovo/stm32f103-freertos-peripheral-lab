@@ -5,6 +5,7 @@
 #include "inv_mpu_dmp_motion_driver.h"
 #include "stdio.h"
 #include "task.h"
+#include "watchdog_task.h"
 extern osMutexId_t I2CMutexHandle;
 extern osMutexId_t AttitudeMutexHandle;
 
@@ -22,6 +23,8 @@ void MPU_Read_Task_Entry(void *argument)
 
     for(;;)
     {
+        Watchdog_Checkin(WDG_TASK_MPU);
+
         osMutexAcquire(I2CMutexHandle, osWaitForever);
         int result = mpu_dmp_get_data(&pitch, &roll, &yaw);
         osMutexRelease(I2CMutexHandle);

@@ -318,6 +318,7 @@ void Hearbeat_Task(void *argument)
   uint8_t hwm_counter = 0;
   for(;;)
   {
+    Watchdog_Checkin(WDG_TASK_HEARTBEAT);
     // oled_Refresh();
     // osDelay(100);
     // i++;
