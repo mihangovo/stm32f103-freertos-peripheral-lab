@@ -33,6 +33,7 @@
 #include "stdio.h"
 #include "led_task.h"
 #include "storage_task.h"
+#include "watchdog_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,6 +97,13 @@ const osThreadAttr_t LedTask_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for WatchdogTask */
+osThreadId_t WatchdogTaskHandle;
+const osThreadAttr_t WatchdogTask_attributes = {
+  .name = "WatchdogTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for KeyQueue */
 osMessageQueueId_t KeyQueueHandle;
 const osMessageQueueAttr_t KeyQueue_attributes = {
@@ -138,6 +146,7 @@ void MPU_Read_Task(void *argument);
 void Hearbeat_Task(void *argument);
 void Storage_Task(void *argument);
 void Led_Task(void *argument);
+void Watchdog_Task(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -218,6 +227,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of LedTask */
   LedTaskHandle = osThreadNew(Led_Task, NULL, &LedTask_attributes);
+
+  /* creation of WatchdogTask */
+  WatchdogTaskHandle = osThreadNew(Watchdog_Task, NULL, &WatchdogTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   printf("[RTOS] free heap after all creation = %u bytes\r\n", (unsigned)xPortGetFreeHeapSize());
@@ -374,6 +386,20 @@ void Led_Task(void *argument)
   //   osDelay(1);
   // }
   /* USER CODE END Led_Task */
+}
+
+/* USER CODE BEGIN Header_Watchdog_Task */
+/**
+* @brief Function implementing the WatchdogTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Watchdog_Task */
+void Watchdog_Task(void *argument)
+{
+  /* USER CODE BEGIN Watchdog_Task */
+  Watchdog_Task_Entry(argument);
+  /* USER CODE END Watchdog_Task */
 }
 
 /* Private application code --------------------------------------------------*/
