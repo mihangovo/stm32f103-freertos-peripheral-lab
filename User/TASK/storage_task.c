@@ -2,6 +2,7 @@
 #include "norflash.h"
 #include <string.h>
 #include "stdio.h"
+#include "watchdog_task.h"
 extern osMutexId_t SPIMutexHandle;       // 需要在CubeMX里新建
 extern osMutexId_t MetaDataMutexHandle;  // 需要在CubeMX里新建
 extern osMessageQueueId_t StorageCmdQueueHandle;  // 需要在CubeMX里新建
@@ -208,7 +209,10 @@ void Storage_Task_Entry(void *argument)
 
     for(;;)
     {
-        if(osMessageQueueGet(StorageCmdQueueHandle, &cmd, NULL, osWaitForever) == osOK)
+        osStatus_t status = osMessageQueueGet(StorageCmdQueueHandle, &cmd, NULL, 1000);
+        Watchdog_Checkin(WDG_TASK_STORAGE);
+
+        if(status == osOK)
         {
             printf("[StorageTask] dequeued cmd.type=%d\r\n", (int)cmd.type);
             switch(cmd.type)
