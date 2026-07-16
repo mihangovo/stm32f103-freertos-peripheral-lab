@@ -60,6 +60,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/TASK/led_task.c
     User/TASK/storage_task.c
     User/TASK/watchdog_task.c
+    User/WS2812/ws2812.c
 )
 
 # Add include paths
@@ -71,6 +72,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     User/MPU6050/eMPL
     User/TASK
     User/NORFLASH
+    User/WS2812
 )
 
 # Add project symbols (macros)

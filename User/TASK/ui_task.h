@@ -12,6 +12,7 @@ typedef enum {
     UI_LED_MENU,
     UI_LED_ONBOARD_PAGE,
     UI_UART_MONITOR_PAGE,
+    UI_WS2812_PAGE,
     UI_PAGE_COUNT
 } UI_State_t;
 

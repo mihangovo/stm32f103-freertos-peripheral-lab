@@ -105,9 +105,9 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
-  MX_TIM2_Init();
   MX_SPI2_Init();
   MX_IWDG_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST))
@@ -117,8 +117,6 @@ int main(void)
   __HAL_RCC_CLEAR_RESET_FLAGS();
 
   UART_Rx_Start();
- HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
- __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 19999*12.5/100); // 将占空比调整到 50%
 
   iic_init();     /* 初始化IIC总线 */  
   OLED_Init();   /* 初始化OLED */ 

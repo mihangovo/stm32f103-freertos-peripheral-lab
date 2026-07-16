@@ -9,6 +9,7 @@
 #include "storage_task.h"
 #include "usart.h"
 #include "watchdog_task.h"
+#include "ws2812.h"
 #include <string.h>
 
 extern osMessageQueueId_t KeyQueueHandle;
@@ -29,6 +30,7 @@ static const UI_State_t ui_parent_map[UI_PAGE_COUNT] = {
     [UI_LED_MENU]          = UI_MAIN_MENU,
     [UI_LED_ONBOARD_PAGE]  = UI_LED_MENU,
     [UI_UART_MONITOR_PAGE] = UI_MAIN_MENU,
+    [UI_WS2812_PAGE]       = UI_LED_MENU,
 };
 
 typedef struct {
@@ -39,15 +41,15 @@ typedef struct {
 static const MenuEntry_t main_menu[] = {
     {"Attitude", UI_ATTITUDE_PAGE},
     {"Storage",  UI_STORAGE_PAGE},
-    {"Setting",  UI_SETTING_PAGE},
     {"LED",      UI_LED_MENU},
     {"UART",     UI_UART_MONITOR_PAGE},
+    {"Setting",  UI_SETTING_PAGE},
 };
 #define MAIN_MENU_COUNT   (sizeof(main_menu)/sizeof(main_menu[0]))
 
 static const MenuEntry_t led_menu[] = {
     {"Onboard LED", UI_LED_ONBOARD_PAGE},
-    {"WS2812",      UI_LED_MENU},
+    {"WS2812",      UI_WS2812_PAGE},
 };
 #define LED_MENU_COUNT   (sizeof(led_menu)/sizeof(led_menu[0]))
 
@@ -220,10 +222,17 @@ static void Draw_Storage_Page(void)
 {
     OLED_Clear();
 
+    uint8_t count = Storage_GetHistoryCount();
+    if(count == 0)
+    {
+        OLED_Refresh();
+        return;
+    }
+
     for(uint8_t row = 0; row < HISTORY_VISIBLE_ROWS; row++)
     {
         uint8_t offset = storage_scroll + row;
-        if(offset >= FLASH_HISTORY_SLOT_COUNT)
+        if(offset >= count)
         {
             break;
         }
@@ -231,17 +240,10 @@ static void Draw_Storage_Page(void)
         HistoryRecord_t rec;
         char line[OLED_LINE_CHARS_12PT + 1];
 
-        if(Storage_ReadHistoryByOffset(offset, &rec))
-        {
-            rec.content[rec.length] = '\0';
-            uint8_t take = (rec.length > OLED_LINE_CHARS_12PT) ? OLED_LINE_CHARS_12PT : rec.length;
-            memcpy(line, rec.content, take);
-            line[take] = '\0';
-        }
-        else
-        {
-            strcpy(line, "Empty");
-        }
+        (void)Storage_ReadHistoryByOffset(offset, &rec);
+        uint8_t take = (rec.length > OLED_LINE_CHARS_12PT) ? OLED_LINE_CHARS_12PT : rec.length;
+        memcpy(line, rec.content, take);
+        line[take] = '\0';
 
         uint8_t y = row * 16;
         if(offset == storage_cursor)
@@ -268,13 +270,19 @@ static void Storage_Enter(void)
 
 static UI_State_t Storage_OnKey(uint16_t evt)
 {
+    uint8_t count = Storage_GetHistoryCount();
+    if(count == 0)
+    {
+        return UI_PAGE_COUNT;
+    }
+
     if(evt == KEY0_SHORT)
     {
         if(storage_cursor > 0) storage_cursor--;
     }
     else if(evt == KEY1_SHORT)
     {
-        if(storage_cursor < FLASH_HISTORY_SLOT_COUNT - 1) storage_cursor++;
+        if(storage_cursor < count - 1) storage_cursor++;
     }
 
     if(storage_cursor < storage_scroll)
@@ -466,6 +474,46 @@ static void UartMon_OnTick(void)
 }
 
 // ================= 调度表 =================
+static uint8_t ws_edit_field;
+static WS2812_Mode_t ws_mode = WS2812_MODE_OFF;
+static WS2812_Color_t ws_color = WS2812_COLOR_RED;
+
+static const char *const ws_mode_names[] = {"Off", "Static", "Rainbow", "Chase", "Breathe"};
+static const char *const ws_color_names[] = {"Red", "Green", "Blue", "Yellow", "Cyan", "Purple", "White"};
+
+static void Ws2812_Apply(void)
+{
+    WS2812_SelectMode(ws_mode);
+    WS2812_SelectColor(ws_color);
+}
+
+static void Ws2812_Enter(void)
+{
+    ws_mode = WS2812_GetMode();
+    ws_color = WS2812_GetColor();
+    OLED_Clear();
+    OLED_ShowString(0, 0, (uint8_t*)"WS2812", 12, 1);
+    OLED_ShowString(0, 20, (uint8_t*)"KeyUp: Select", 12, 1);
+    OLED_ShowString(0, 36, (uint8_t*)ws_mode_names[ws_mode], 12, 1);
+    OLED_ShowString(0, 50, (uint8_t*)ws_color_names[ws_color], 12, 1);
+    OLED_Refresh();
+}
+
+static UI_State_t Ws2812_OnKey(uint16_t evt)
+{
+    if(evt == KEY_UP_SHORT) ws_edit_field ^= 1U;
+    else if(evt == KEY0_SHORT) {
+        if(ws_edit_field == 0U) ws_mode = (ws_mode == 0U) ? WS2812_MODE_COUNT - 1U : ws_mode - 1U;
+        else ws_color = (ws_color == 0U) ? WS2812_COLOR_COUNT - 1U : ws_color - 1U;
+    } else if(evt == KEY1_SHORT) {
+        if(ws_edit_field == 0U) ws_mode = (ws_mode + 1U) % WS2812_MODE_COUNT;
+        else ws_color = (ws_color + 1U) % WS2812_COLOR_COUNT;
+    }
+    Ws2812_Apply();
+    Ws2812_Enter();
+    return UI_PAGE_COUNT;
+}
+
 static const UI_Page_t ui_pages[UI_PAGE_COUNT] = {
     [UI_MAIN_MENU]         = { MainMenu_Enter,   MainMenu_OnKey,   NULL },
     [UI_ATTITUDE_PAGE]     = { Attitude_Enter,   Attitude_OnKey,   Attitude_OnTick },
@@ -474,6 +522,7 @@ static const UI_Page_t ui_pages[UI_PAGE_COUNT] = {
     [UI_LED_MENU]          = { LedMenu_Enter,    LedMenu_OnKey,    NULL },
     [UI_LED_ONBOARD_PAGE]  = { LedOnboard_Enter, LedOnboard_OnKey, NULL },
     [UI_UART_MONITOR_PAGE] = { UartMon_Enter,    UartMon_OnKey,    UartMon_OnTick },
+    [UI_WS2812_PAGE]       = { Ws2812_Enter,     Ws2812_OnKey,     NULL },
 };
 
 // 把当前页面号写入meta并请求保存，跟led_task.c保存红灯状态用的是同一套模式

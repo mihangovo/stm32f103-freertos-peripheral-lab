@@ -3,6 +3,7 @@
 #include "storage_task.h"
 #include "stdio.h"
 #include "watchdog_task.h"
+#include "ws2812.h"
 
 extern osMutexId_t MetaDataMutexHandle;
 
@@ -19,6 +20,7 @@ void LED_Red_Toggle(void)
 {
     g_led_red_state = !g_led_red_state;
     LED_Red_ApplyState(g_led_red_state);
+    WS2812_Init();
 
     // 同步更新到Storage的meta数据，并请求保存
     MetaData_t *meta = Storage_GetMeta();
@@ -44,10 +46,12 @@ void LED_Task_Entry(void *argument)
     // printf("LED task=%d\r\n", g_led_red_state);
     // printf("LED Task Start\r\n");
     LED_Red_ApplyState(g_led_red_state);
+    WS2812_Init();
 
     for(;;)
     {
         Watchdog_Checkin(WDG_TASK_LED);
-        osDelay(500);   // 这个任务目前不需要持续工作，红灯只在按键触发时切换状态，主循环留空即可
+        WS2812_Tick();
+        osDelay(20);   // 这个任务目前不需要持续工作，红灯只在按键触发时切换状态，主循环留空即可
     }
 }
