@@ -30,7 +30,10 @@ static const UI_State_t ui_parent_map[UI_PAGE_COUNT] = {
     [UI_LED_MENU]          = UI_MAIN_MENU,
     [UI_LED_ONBOARD_PAGE]  = UI_LED_MENU,
     [UI_UART_MONITOR_PAGE] = UI_MAIN_MENU,
-    [UI_WS2812_PAGE]       = UI_LED_MENU,
+    [UI_WS2812_MENU]            = UI_LED_MENU,
+    [UI_WS2812_BRIGHTNESS_PAGE] = UI_WS2812_MENU,
+    [UI_WS2812_COLOR_PAGE]      = UI_WS2812_MENU,
+    [UI_WS2812_MODE_PAGE]       = UI_WS2812_MENU,
 };
 
 typedef struct {
@@ -49,7 +52,7 @@ static const MenuEntry_t main_menu[] = {
 
 static const MenuEntry_t led_menu[] = {
     {"Onboard LED", UI_LED_ONBOARD_PAGE},
-    {"WS2812",      UI_WS2812_PAGE},
+    {"WS2812",      UI_WS2812_MENU},
 };
 #define LED_MENU_COUNT   (sizeof(led_menu)/sizeof(led_menu[0]))
 
@@ -474,43 +477,168 @@ static void UartMon_OnTick(void)
 }
 
 // ================= 调度表 =================
-static uint8_t ws_edit_field;
-static WS2812_Mode_t ws_mode = WS2812_MODE_OFF;
-static WS2812_Color_t ws_color = WS2812_COLOR_RED;
+static uint8_t ws2812_cursor = 0, ws2812_scroll = 0;
+static uint8_t ws_mode_field = 0;
 
-static const char *const ws_mode_names[] = {"Off", "Static", "Rainbow", "Chase", "Breathe"};
+static const MenuEntry_t ws2812_menu[] = {
+    {"Brightness", UI_WS2812_BRIGHTNESS_PAGE},
+    {"Color",      UI_WS2812_COLOR_PAGE},
+    {"Mode",       UI_WS2812_MODE_PAGE},
+};
+#define WS2812_MENU_COUNT (sizeof(ws2812_menu)/sizeof(ws2812_menu[0]))
+
+static const char *const ws_mode_names[] = {"Static", "Breathe", "Chase"};
 static const char *const ws_color_names[] = {"Red", "Green", "Blue", "Yellow", "Cyan", "Purple", "White"};
 
-static void Ws2812_Apply(void)
+static void Ws2812_SaveSettings(void)
 {
-    WS2812_SelectMode(ws_mode);
-    WS2812_SelectColor(ws_color);
+    MetaData_t *meta = Storage_GetMeta();
+    uint8_t mode_power = WS2812_META_VALID | ((uint8_t)WS2812_GetMode() & WS2812_META_MODE_MASK);
+
+    if(WS2812_GetPower() != 0U)
+    {
+        mode_power |= WS2812_META_POWER;
+    }
+
+    osMutexAcquire(MetaDataMutexHandle, osWaitForever);
+    meta->ws2812_brightness = WS2812_GetBrightness();
+    meta->ws2812_color = (uint8_t)WS2812_GetColor();
+    meta->ws2812_mode_power = mode_power;
+    osMutexRelease(MetaDataMutexHandle);
+    Storage_RequestSaveState();
 }
 
-static void Ws2812_Enter(void)
+static void Ws2812Menu_Enter(void)
 {
-    ws_mode = WS2812_GetMode();
-    ws_color = WS2812_GetColor();
+    Draw_Generic_Menu(ws2812_menu, WS2812_MENU_COUNT, ws2812_cursor, ws2812_scroll);
+}
+
+static UI_State_t Ws2812Menu_OnKey(uint16_t evt)
+{
+    UI_State_t target = Handle_Generic_Menu(ws2812_menu, WS2812_MENU_COUNT, &ws2812_cursor, &ws2812_scroll, evt);
+    if(target == UI_PAGE_COUNT || target == UI_WS2812_MENU)
+    {
+        Draw_Generic_Menu(ws2812_menu, WS2812_MENU_COUNT, ws2812_cursor, ws2812_scroll);
+    }
+    return target;
+}
+
+static void Ws2812Brightness_Enter(void)
+{
+    char value[8];
+    snprintf(value, sizeof(value), "%u%%", (unsigned int)WS2812_GetBrightness());
     OLED_Clear();
-    OLED_ShowString(0, 0, (uint8_t*)"WS2812", 12, 1);
-    OLED_ShowString(0, 20, (uint8_t*)"KeyUp: Select", 12, 1);
-    OLED_ShowString(0, 36, (uint8_t*)ws_mode_names[ws_mode], 12, 1);
-    OLED_ShowString(0, 50, (uint8_t*)ws_color_names[ws_color], 12, 1);
+    OLED_ShowString(0, 0, (uint8_t*)"Brightness", 12, 1);
+    OLED_ShowString(0, 22, (uint8_t*)value, 16, 1);
+    OLED_ShowString(0, 50, (uint8_t*)"K0:-  K1:+", 12, 1);
     OLED_Refresh();
 }
 
-static UI_State_t Ws2812_OnKey(uint16_t evt)
+static UI_State_t Ws2812Brightness_OnKey(uint16_t evt)
 {
-    if(evt == KEY_UP_SHORT) ws_edit_field ^= 1U;
-    else if(evt == KEY0_SHORT) {
-        if(ws_edit_field == 0U) ws_mode = (ws_mode == 0U) ? WS2812_MODE_COUNT - 1U : ws_mode - 1U;
-        else ws_color = (ws_color == 0U) ? WS2812_COLOR_COUNT - 1U : ws_color - 1U;
-    } else if(evt == KEY1_SHORT) {
-        if(ws_edit_field == 0U) ws_mode = (ws_mode + 1U) % WS2812_MODE_COUNT;
-        else ws_color = (ws_color + 1U) % WS2812_COLOR_COUNT;
+    uint8_t brightness = WS2812_GetBrightness();
+    uint8_t changed = 0U;
+    if(evt == KEY0_SHORT && brightness >= 10U)
+    {
+        WS2812_SetBrightness(brightness - 10U);
+        changed = 1U;
     }
-    Ws2812_Apply();
-    Ws2812_Enter();
+    else if(evt == KEY1_SHORT && brightness <= 90U)
+    {
+        WS2812_SetBrightness(brightness + 10U);
+        changed = 1U;
+    }
+    if(changed != 0U) Ws2812_SaveSettings();
+    Ws2812Brightness_Enter();
+    return UI_PAGE_COUNT;
+}
+
+static void Ws2812Color_Enter(void)
+{
+    WS2812_Color_t color = WS2812_GetColor();
+    OLED_Clear();
+    OLED_ShowString(0, 0, (uint8_t*)"Color", 12, 1);
+    OLED_ShowString(0, 22, (uint8_t*)ws_color_names[color], 16, 1);
+    OLED_ShowString(0, 50, (uint8_t*)"K0:<  K1:>", 12, 1);
+    OLED_Refresh();
+}
+
+static UI_State_t Ws2812Color_OnKey(uint16_t evt)
+{
+    WS2812_Color_t color = WS2812_GetColor();
+    uint8_t changed = 0U;
+    if(evt == KEY0_SHORT)
+    {
+        color = (color == WS2812_COLOR_RED) ? (WS2812_COLOR_COUNT - 1U) : (color - 1U);
+        WS2812_SelectColor(color);
+        changed = 1U;
+    }
+    else if(evt == KEY1_SHORT)
+    {
+        color = (color + 1U) % WS2812_COLOR_COUNT;
+        WS2812_SelectColor(color);
+        changed = 1U;
+    }
+    if(changed != 0U) Ws2812_SaveSettings();
+    Ws2812Color_Enter();
+    return UI_PAGE_COUNT;
+}
+
+static void Ws2812Mode_ShowField(uint8_t y, const char *text, uint8_t selected)
+{
+    if(selected != 0U)
+    {
+        OLED_FillRect(0, y, 127, 16, 1);
+        OLED_ShowString(0, y, (uint8_t*)text, 12, 0);
+    }
+    else
+    {
+        OLED_ShowString(0, y, (uint8_t*)text, 12, 1);
+    }
+}
+
+static void Ws2812Mode_Enter(void)
+{
+    char power_line[16];
+    char effect_line[20];
+    WS2812_Mode_t mode = WS2812_GetMode();
+    snprintf(power_line, sizeof(power_line), "Power: %s", WS2812_GetPower() ? "On" : "Off");
+    snprintf(effect_line, sizeof(effect_line), "Effect: %s", ws_mode_names[mode]);
+
+    OLED_Clear();
+    OLED_ShowString(0, 0, (uint8_t*)"Mode", 12, 1);
+    Ws2812Mode_ShowField(20, power_line, ws_mode_field == 0U);
+    Ws2812Mode_ShowField(38, effect_line, ws_mode_field == 1U);
+    OLED_ShowString(0, 54, (uint8_t*)"Up:Select", 8, 1);
+    OLED_Refresh();
+}
+
+static UI_State_t Ws2812Mode_OnKey(uint16_t evt)
+{
+    uint8_t changed = 0U;
+    if(evt == KEY_UP_SHORT)
+    {
+        ws_mode_field ^= 1U;
+    }
+    else if(ws_mode_field == 0U && (evt == KEY0_SHORT || evt == KEY1_SHORT))
+    {
+        WS2812_SetPower(!WS2812_GetPower());
+        changed = 1U;
+    }
+    else if(ws_mode_field == 1U && evt == KEY0_SHORT)
+    {
+        WS2812_Mode_t mode = WS2812_GetMode();
+        mode = (mode == WS2812_MODE_STATIC) ? (WS2812_MODE_COUNT - 1U) : (mode - 1U);
+        WS2812_SelectMode(mode);
+        changed = 1U;
+    }
+    else if(ws_mode_field == 1U && evt == KEY1_SHORT)
+    {
+        WS2812_SelectMode((WS2812_GetMode() + 1U) % WS2812_MODE_COUNT);
+        changed = 1U;
+    }
+    if(changed != 0U) Ws2812_SaveSettings();
+    Ws2812Mode_Enter();
     return UI_PAGE_COUNT;
 }
 
@@ -522,7 +650,10 @@ static const UI_Page_t ui_pages[UI_PAGE_COUNT] = {
     [UI_LED_MENU]          = { LedMenu_Enter,    LedMenu_OnKey,    NULL },
     [UI_LED_ONBOARD_PAGE]  = { LedOnboard_Enter, LedOnboard_OnKey, NULL },
     [UI_UART_MONITOR_PAGE] = { UartMon_Enter,    UartMon_OnKey,    UartMon_OnTick },
-    [UI_WS2812_PAGE]       = { Ws2812_Enter,     Ws2812_OnKey,     NULL },
+    [UI_WS2812_MENU]            = { Ws2812Menu_Enter,       Ws2812Menu_OnKey,       NULL },
+    [UI_WS2812_BRIGHTNESS_PAGE] = { Ws2812Brightness_Enter, Ws2812Brightness_OnKey, NULL },
+    [UI_WS2812_COLOR_PAGE]      = { Ws2812Color_Enter,      Ws2812Color_OnKey,      NULL },
+    [UI_WS2812_MODE_PAGE]       = { Ws2812Mode_Enter,       Ws2812Mode_OnKey,       NULL },
 };
 
 // 把当前页面号写入meta并请求保存，跟led_task.c保存红灯状态用的是同一套模式

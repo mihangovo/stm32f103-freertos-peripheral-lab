@@ -17,12 +17,12 @@ typedef struct {
     uint32_t magic;
     uint8_t  led_red_state;
     uint8_t  last_ui_page;
-    uint8_t  menu_cursor;
+    uint8_t  ws2812_brightness;
     uint8_t  history_write_slot;
     uint8_t  history_valid_count;
-    uint8_t  reserved;
+    uint8_t  ws2812_color;
     uint32_t history_sequence;
-    uint8_t  history_next_index;   // 下一条历史记录该写到第几号槽位(0~14)
+    uint8_t  ws2812_mode_power;
 } MetaData_t;
 
 typedef enum {

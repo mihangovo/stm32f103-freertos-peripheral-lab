@@ -37,16 +37,31 @@ uint8_t LED_Red_GetState(void)
 
 void LED_Task_Entry(void *argument)
 {
+    uint8_t ws_brightness;
+    uint8_t ws_color;
+    uint8_t ws_mode_power;
+
     // 上电时，从Storage恢复红灯状态
     MetaData_t *meta = Storage_GetMeta();
     osMutexAcquire(MetaDataMutexHandle, osWaitForever);
     g_led_red_state = meta->led_red_state;
+    ws_brightness = meta->ws2812_brightness;
+    ws_color = meta->ws2812_color;
+    ws_mode_power = meta->ws2812_mode_power;
     osMutexRelease(MetaDataMutexHandle);
 
     // printf("LED task=%d\r\n", g_led_red_state);
     // printf("LED Task Start\r\n");
     LED_Red_ApplyState(g_led_red_state);
     WS2812_Init();
+
+    if((ws_mode_power & WS2812_META_VALID) != 0U)
+    {
+        WS2812_SetBrightness(ws_brightness);
+        WS2812_SelectColor((WS2812_Color_t)ws_color);
+        WS2812_SelectMode((WS2812_Mode_t)(ws_mode_power & WS2812_META_MODE_MASK));
+        WS2812_SetPower(ws_mode_power & WS2812_META_POWER);
+    }
 
     for(;;)
     {
