@@ -63,7 +63,6 @@ User/WS2812/          WS2812 状态机与 TIM3 PWM + DMA 驱动
 User/NORFLASH/        NOR Flash 与元数据/历史记录逻辑
 User/OLED/            OLED 驱动
 docs/debugging-notes/ 已记录的真实调试复盘
-docs/learning-guide.md 架构、学习、面试与 AI 协作手册
 ```
 
 ## 后续方向
@@ -71,10 +70,6 @@ docs/learning-guide.md 架构、学习、面试与 AI 协作手册
 - 接入第二个 CAN 节点，完成 Normal 模式下的真实 CANH/CANL 通信与错误处理。
 - 增加任务栈高水位、队列丢包和 CAN 错误状态的长期监控。
 - 补充实物接线图、运行截图和 B 站演示视频。
-
-## 学习与复盘
-
-详细的代码阅读路线、面试表达、调试案例和 AI 协作经验见 [学习与面试手册](docs/learning-guide.md)。
 
 ## 许可证
 
