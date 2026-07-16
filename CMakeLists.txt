@@ -60,6 +60,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/TASK/led_task.c
     User/TASK/storage_task.c
     User/TASK/watchdog_task.c
+    User/TASK/system_init.c
+    User/TASK/can_task.c
     User/WS2812/ws2812.c
 )
 

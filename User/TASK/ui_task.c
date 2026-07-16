@@ -10,6 +10,8 @@
 #include "usart.h"
 #include "watchdog_task.h"
 #include "ws2812.h"
+#include "system_init.h"
+#include "can_task.h"
 #include <string.h>
 
 extern osMessageQueueId_t KeyQueueHandle;
@@ -30,6 +32,7 @@ static const UI_State_t ui_parent_map[UI_PAGE_COUNT] = {
     [UI_LED_MENU]          = UI_MAIN_MENU,
     [UI_LED_ONBOARD_PAGE]  = UI_LED_MENU,
     [UI_UART_MONITOR_PAGE] = UI_MAIN_MENU,
+    [UI_CAN_PAGE]          = UI_MAIN_MENU,
     [UI_WS2812_MENU]            = UI_LED_MENU,
     [UI_WS2812_BRIGHTNESS_PAGE] = UI_WS2812_MENU,
     [UI_WS2812_COLOR_PAGE]      = UI_WS2812_MENU,
@@ -46,6 +49,7 @@ static const MenuEntry_t main_menu[] = {
     {"Storage",  UI_STORAGE_PAGE},
     {"LED",      UI_LED_MENU},
     {"UART",     UI_UART_MONITOR_PAGE},
+    {"CAN",      UI_CAN_PAGE},
     {"Setting",  UI_SETTING_PAGE},
 };
 #define MAIN_MENU_COUNT   (sizeof(main_menu)/sizeof(main_menu[0]))
@@ -477,6 +481,37 @@ static void UartMon_OnTick(void)
 }
 
 // ================= 调度表 =================
+// ================= CAN 页面 =================
+static void Can_Enter(void)
+{
+    CanStats_t stats;
+    char line[24];
+    Can_GetStats(&stats);
+
+    OLED_Clear();
+    OLED_ShowString(0, 0, (uint8_t*)"CAN Loopback", 12, 1);
+    snprintf(line, sizeof(line), "TX:%lu RX:%lu", (unsigned long)stats.tx_count, (unsigned long)stats.rx_count);
+    OLED_ShowString(0, 16, (uint8_t*)line, 12, 1);
+    snprintf(line, sizeof(line), "ERR:%lu DROP:%lu", (unsigned long)stats.error_count, (unsigned long)stats.drop_count);
+    OLED_ShowString(0, 32, (uint8_t*)line, 12, 1);
+    snprintf(line, sizeof(line), "ID:0x%03lX", (unsigned long)stats.last_id);
+    OLED_ShowString(0, 48, (uint8_t*)line, 12, 1);
+    OLED_Refresh();
+}
+
+static UI_State_t Can_OnKey(uint16_t evt)
+{
+    (void)evt;
+    Can_Enter();
+    return UI_PAGE_COUNT;
+}
+
+static void Can_OnTick(void)
+{
+    Can_Enter();
+}
+
+// ================= WS2812 页面 =================
 static uint8_t ws2812_cursor = 0, ws2812_scroll = 0;
 static uint8_t ws_mode_field = 0;
 
@@ -650,6 +685,7 @@ static const UI_Page_t ui_pages[UI_PAGE_COUNT] = {
     [UI_LED_MENU]          = { LedMenu_Enter,    LedMenu_OnKey,    NULL },
     [UI_LED_ONBOARD_PAGE]  = { LedOnboard_Enter, LedOnboard_OnKey, NULL },
     [UI_UART_MONITOR_PAGE] = { UartMon_Enter,    UartMon_OnKey,    UartMon_OnTick },
+    [UI_CAN_PAGE]          = { Can_Enter,        Can_OnKey,        Can_OnTick },
     [UI_WS2812_MENU]            = { Ws2812Menu_Enter,       Ws2812Menu_OnKey,       NULL },
     [UI_WS2812_BRIGHTNESS_PAGE] = { Ws2812Brightness_Enter, Ws2812Brightness_OnKey, NULL },
     [UI_WS2812_COLOR_PAGE]      = { Ws2812Color_Enter,      Ws2812Color_OnKey,      NULL },
@@ -672,6 +708,9 @@ void UI_Manager_Task_Entry(void *argument)
     UI_State_t last_ui = UI_PAGE_COUNT;
     uint16_t evt;
 
+    (void)argument;
+    System_Init_WaitReady();
+
     // 上电时恢复上次所在的页面；数据非法(比如flash是首次使用的默认值)时退回主菜单
     MetaData_t *meta = Storage_GetMeta();
     osMutexAcquire(MetaDataMutexHandle, osWaitForever);
@@ -689,7 +728,7 @@ void UI_Manager_Task_Entry(void *argument)
 
     for(;;)
     {
-        uint32_t timeout = (ui_pages[current_ui].on_tick != NULL) ? 1 : 1000;
+        uint32_t timeout = (ui_pages[current_ui].on_tick != NULL) ? 100 : 1000;
         osStatus_t status = osMessageQueueGet(KeyQueueHandle, &evt, NULL, timeout);
         Watchdog_Checkin(WDG_TASK_UI);
 

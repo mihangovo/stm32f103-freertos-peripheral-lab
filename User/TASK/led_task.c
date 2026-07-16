@@ -4,6 +4,7 @@
 #include "stdio.h"
 #include "watchdog_task.h"
 #include "ws2812.h"
+#include "system_init.h"
 
 extern osMutexId_t MetaDataMutexHandle;
 
@@ -40,6 +41,9 @@ void LED_Task_Entry(void *argument)
     uint8_t ws_brightness;
     uint8_t ws_color;
     uint8_t ws_mode_power;
+
+    (void)argument;
+    System_Init_WaitReady();
 
     // 上电时，从Storage恢复红灯状态
     MetaData_t *meta = Storage_GetMeta();

@@ -1,6 +1,7 @@
 #include "key_task.h"
 #include "main.h"
 #include "watchdog_task.h"
+#include "system_init.h"
 
 #define LONG_PRESS_TICKS   pdMS_TO_TICKS(200)
 #define DEBOUNCE_MS        20
@@ -23,6 +24,9 @@ void Key_Scan_Task_Entry(void *argument)
 {
     uint8_t key_last_state[3] = {1, 1, 1};
     uint32_t press_start_tick[3] = {0};
+
+    (void)argument;
+    System_Init_WaitReady();
 
     for(;;)
     {

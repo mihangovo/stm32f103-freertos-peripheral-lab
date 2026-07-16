@@ -1,6 +1,7 @@
 #include "storage_task.h"
 #include "norflash.h"
 #include "watchdog_task.h"
+#include "system_init.h"
 #include <string.h>
 
 extern osMutexId_t SPIMutexHandle;
@@ -210,6 +211,8 @@ void Storage_Task_Entry(void *argument)
 {
     StorageCmd_t cmd;
     (void)argument;
+
+    System_Init_WaitReady();
 
     for (;;)
     {
