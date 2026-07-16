@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="pic/整体图.jpg" alt="项目整体图" width="48%" />
-  <img src="pic/初始化图.jpg" alt="系统初始化界面" width="48%" />
+  <img src="pic/init-screen.jpg" alt="系统初始化界面" width="48%" />
 </p>
 <p align="center">
   <img src="pic/MPU6050界面.jpg" alt="MPU6050 姿态界面" width="48%" />
