@@ -6,6 +6,21 @@
 
 > Bilibili 演示视频：发布后替换为 `https://www.bilibili.com/video/BVxxxxxxxxxx/`
 
+## 实物演示
+
+<p align="center">
+  <img src="pic/整体图.jpg" alt="项目整体图" width="48%" />
+  <img src="pic/初始化图.jpg" alt="系统初始化界面" width="48%" />
+</p>
+<p align="center">
+  <img src="pic/MPU6050界面.jpg" alt="MPU6050 姿态界面" width="48%" />
+  <img src="pic/灯环图.jpg" alt="WS2812 灯环效果" width="48%" />
+</p>
+<p align="center">
+  <img src="pic/CAN界面.jpg" alt="CAN 内部回环状态" width="48%" />
+  <img src="pic/UART和Storage界面.jpg" alt="UART 与 Storage 界面" width="48%" />
+</p>
+
 ## 已验证功能
 
 | 模块 | 已实现内容 |
