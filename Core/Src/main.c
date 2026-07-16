@@ -134,10 +134,10 @@ int main(void)
 
   if (id == 0 || id == 0xFFFF) {
     printf("FLASH Check Failed! Please check wiring.\r\n");
-  } else if (id == W25Q128) {
-    printf("FLASH Check OK, chip is W25Q128.\r\n");
+  } else if (id == NM25Q128) {
+    printf("FLASH Check OK, chip is NM25Q128.\r\n");
   } else {
-    printf("FLASH detected, but ID does not match W25Q128 (got 0x%04X)\r\n",
+    printf("FLASH detected, but ID does not match NM25Q128 (got 0x%04X)\r\n",
            id);
   }
 

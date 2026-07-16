@@ -2,7 +2,7 @@
 #include "main.h"
 #include "watchdog_task.h"
 
-#define LONG_PRESS_TICKS   pdMS_TO_TICKS(800)
+#define LONG_PRESS_TICKS   pdMS_TO_TICKS(200)
 #define DEBOUNCE_MS        20
 #define SCAN_PERIOD_MS     10
 
